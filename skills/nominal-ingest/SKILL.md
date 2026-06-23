@@ -1,11 +1,11 @@
 ---
 name: nominal-ingest
-description: Ingest a folder of test/campaign data into Nominal. Use when the user points you at a directory of CSV/Parquet/video files and wants assets, runs, and datasets created with sensible labels and properties. Authenticates the `nom` CLI, infers folder structure, proposes a plan, then executes it.
+description: Ingest a folder of test/campaign data into Nominal. Use when the user points you at a directory of CSV/Parquet/video files and wants assets, runs, and datasets created with sensible labels and properties. Authenticates the `nomctl` CLI, infers folder structure, proposes a plan, then executes it.
 ---
 
 # Nominal ingest
 
-Help a user move data from disk into Nominal. The user will point you at a folder; you walk it, infer what should be modeled as assets vs. runs vs. datasets, propose a plan, and execute it via the `nom` CLI.
+Help a user move data from disk into Nominal. The user will point you at a folder; you walk it, infer what should be modeled as assets vs. runs vs. datasets, propose a plan, and execute it via the `nomctl` CLI.
 
 **Always plan first, execute second.** Never create resources or ingest data before showing the user a written plan and getting approval.
 
@@ -27,18 +27,18 @@ The short version:
 Before touching the user's folder, list existing profiles and pick one:
 
 ```sh
-nom config profile list
-nom --profile <PROFILE> user who-am-i
+nomctl config profile list
+nomctl --profile <PROFILE> user who-am-i
 ```
 
 If `who-am-i` succeeds, you're done. Skip to step 2.
 
 #### If the user has no profile yet
 
-**Don't ask the user to paste a token into chat.** Tokens are sensitive and chat transcripts get saved. Instead, ask the user to run `nom config profile add` themselves, in their own terminal, then come back. Send them this template and ask them to fill in the four bracketed values:
+**Don't ask the user to paste a token into chat.** Tokens are sensitive and chat transcripts get saved. Instead, ask the user to run `nomctl config profile add` themselves, in their own terminal, then come back. Send them this template and ask them to fill in the four bracketed values:
 
 ```sh
-nom config profile add <NAME> \
+nomctl config profile add <NAME> \
   --url https://api.<tenant-host> \
   --token <TOKEN> \
   --workspace-rid <WORKSPACE_RID>
@@ -57,24 +57,24 @@ Then describe each blank — **do not invent values**:
 Once they confirm the profile is created, verify it from your end:
 
 ```sh
-nom --profile <NAME> user who-am-i
+nomctl --profile <NAME> user who-am-i
 ```
 
-#### Passing the profile to every `nom` call
+#### Passing the profile to every `nomctl` call
 
-Each Bash tool call is a fresh shell — `export NOMINAL_PROFILE=...` in one call does _not_ persist to the next. You need the profile on every `nom` invocation.
+Each Bash tool call is a fresh shell — `export NOMINAL_PROFILE=...` in one call does _not_ persist to the next. You need the profile on every `nomctl` invocation.
 
 **Preferred: env-var prefix on the same line.**
 
 ```sh
-NOMINAL_PROFILE=<NAME> nom <SUBCOMMAND> ...
+NOMINAL_PROFILE=<NAME> nomctl <SUBCOMMAND> ...
 ```
 
 This sets `NOMINAL_PROFILE` for that single command in a way that survives shell parsing cleanly. It's the standard Unix idiom and works in any fresh shell. Use this everywhere unless you need to override the profile for one specific call (e.g. comparing two tenants).
 
-**Alternative: inline `--profile` flag.** Same effect, but the flag must go **before** the subcommand: `nom --profile <NAME> <SUBCOMMAND> ...`. `nom <SUBCOMMAND> --profile <NAME>` will fail with `unexpected argument`. `--profile` overrides `NOMINAL_PROFILE` if both are set.
+**Alternative: inline `--profile` flag.** Same effect, but the flag must go **before** the subcommand: `nomctl --profile <NAME> <SUBCOMMAND> ...`. `nomctl <SUBCOMMAND> --profile <NAME>` will fail with `unexpected argument`. `--profile` overrides `NOMINAL_PROFILE` if both are set.
 
-**Do not** pack flags into a single string variable and expand it bare (`P="--profile foo"; nom $P ...`). Shell word-splitting is fragile and intermittently treats the whole thing as one argument.
+**Do not** pack flags into a single string variable and expand it bare (`P="--profile foo"; nomctl $P ...`). Shell word-splitting is fragile and intermittently treats the whole thing as one argument.
 
 ### 2. Walk the folder
 
@@ -86,13 +86,13 @@ Read [references/folder-patterns.md](references/folder-patterns.md) for the reco
 
   | Extension(s)                               | Treat as                                                             |
   | ------------------------------------------ | -------------------------------------------------------------------- |
-  | `*.csv`                                    | dataset → `nom ingest csv`                                           |
-  | `*.parquet` (single)                       | dataset → `nom ingest parquet`                                       |
-  | `*.tar`, `*.tar.gz`, `*.zip` of parquet    | dataset → `nom ingest parquet --archive`                             |
+  | `*.csv`                                    | dataset → `nomctl ingest csv`                                           |
+  | `*.parquet` (single)                       | dataset → `nomctl ingest parquet`                                       |
+  | `*.tar`, `*.tar.gz`, `*.zip` of parquet    | dataset → `nomctl ingest parquet --archive`                             |
   | `*.mcap`                                   | **see MCAP section below** — one timeseries dataset + 0..N videos    |
-  | `*.jsonl`, `*.jsonl.gz` (journald-style)   | dataset → `nom ingest journal-json`                                  |
-  | ArduPilot `.bin`                           | dataset → `nom ingest ardupilot-dataflash`                           |
-  | `*.mp4`, `*.mkv`, `*.avi`, `*.ts`, `*.mov` | video → `nom ingest video --start <RFC3339>` (start is **required**) |
+  | `*.jsonl`, `*.jsonl.gz` (journald-style)   | dataset → `nomctl ingest journal-json`                                  |
+  | ArduPilot `.bin`                           | dataset → `nomctl ingest ardupilot-dataflash`                           |
+  | `*.mp4`, `*.mkv`, `*.avi`, `*.ts`, `*.mov` | video → `nomctl ingest video --start <RFC3339>` (start is **required**) |
   | anything else                              | ignore unless the user asks                                          |
 
   Ignore lock files, `.DS_Store`, hidden files, and obvious build artifacts.
@@ -103,8 +103,8 @@ Read [references/folder-patterns.md](references/folder-patterns.md) for the reco
 
 MCAP is common in robotics/AV/drone work and is unusual because **one file produces a timeseries dataset plus 0..N videos** (one per video topic):
 
-- **Timeseries topics** → one dataset, ingested with `nom ingest mcap`. Nominal's MCAP parser supports **protobuf** and **ROS** messages; topics in any other schema will be skipped (use `--ignore-invalid-topics`). Topic timestamps are native; no `--timestamp-column`/`--timestamp-type`.
-- **Video topics** → one **separate** video resource per topic, each ingested with `nom ingest mcap-video --topic <TOPIC>`. Nominal supports exactly two video encodings inside MCAP: **`foxglove.CompressedVideo`** messages, or raw **H.264** byte-stream messages. Anything else is not a video topic — don't try.
+- **Timeseries topics** → one dataset, ingested with `nomctl ingest mcap`. Nominal's MCAP parser supports **protobuf** and **ROS** messages; topics in any other schema will be skipped (use `--ignore-invalid-topics`). Topic timestamps are native; no `--timestamp-column`/`--timestamp-type`.
+- **Video topics** → one **separate** video resource per topic, each ingested with `nomctl ingest mcap-video --topic <TOPIC>`. Nominal supports exactly two video encodings inside MCAP: **`foxglove.CompressedVideo`** messages, or raw **H.264** byte-stream messages. Anything else is not a video topic — don't try.
 - **Video topics must be excluded from the timeseries ingest.** They will fail or pollute the dataset. Always pass `--exclude-topic <T>` for every video topic identified.
 
 Workflow for an MCAP:
@@ -114,9 +114,9 @@ Workflow for an MCAP:
    - **Video** if schema is exactly `foxglove.CompressedVideo`, or the topic carries a raw H.264 stream. (Topic name hints like `image`/`camera` are not enough — confirm via schema.)
    - **Timeseries** if schema is a protobuf or ROS message. The mcap parser will handle these.
    - **Skip** otherwise.
-3. Plan one `nom ingest mcap` per file. Pass `--exclude-topic <T>` for every video topic. Use `--include-topic` if the user wants to scope further. Add `--ignore-invalid-topics` if there are topics in unsupported schemas you want the parser to skip rather than fail on.
-4. Plan one `nom ingest mcap-video --topic <T>` per supported video topic. Each yields a distinct video resource — name them `<file_basename>__<topic>` after stripping leading slashes (e.g. `front_camera__camera_front`).
-5. Attach all of them to the run with separate `nom run add-dataset` / `nom run add-video` calls.
+3. Plan one `nomctl ingest mcap` per file. Pass `--exclude-topic <T>` for every video topic. Use `--include-topic` if the user wants to scope further. Add `--ignore-invalid-topics` if there are topics in unsupported schemas you want the parser to skip rather than fail on.
+4. Plan one `nomctl ingest mcap-video --topic <T>` per supported video topic. Each yields a distinct video resource — name them `<file_basename>__<topic>` after stripping leading slashes (e.g. `front_camera__camera_front`).
+5. Attach all of them to the run with separate `nomctl run add-dataset` / `nomctl run add-video` calls.
 
 Show the topic classification (video / timeseries / skipped) in the plan so the user can override before you ingest.
 
@@ -183,7 +183,7 @@ A two-deep tree could be `asset/run` (one asset, several tests under it; another
 
 Whatever structural inference you made, override it with what the sidecars say. Sidecars rarely arrive as `metadata.yaml: asset: voyager-1` — they're more often notes saying _"Vibration sweep on Voyager-1, March 15, by Jane"_, or a folder named `voyager-1__2024-03-15_vibration`. Whatever you can extract from prose about a vehicle/serial/test/operator, use it. See [references/folder-patterns.md](references/folder-patterns.md) for the alias lists.
 
-If the user already has matching assets in Nominal, prefer reuse. Use `nom asset search` (substring/label/property filters) when you have a hint to narrow on, or `nom asset list` when the user wants to eyeball everything. Same for runs (`nom run search` / `nom run list`). When the user confirms a match, use that RID instead of creating a new resource.
+If the user already has matching assets in Nominal, prefer reuse. Use `nomctl asset search` (substring/label/property filters) when you have a hint to narrow on, or `nomctl asset list` when the user wants to eyeball everything. Same for runs (`nomctl run search` / `nomctl run list`). When the user confirms a match, use that RID instead of creating a new resource.
 
 ### 4. Bucket files, then pick timestamps and metadata
 
@@ -200,7 +200,7 @@ Bucket files into datasets by (owning-asset, source) **before** picking timestam
 - For videos: one video resource per (asset, camera/topic) — each camera/topic is its own source. Subsequent flights append via `--video <RID>`.
 - If two files claim to be the same source but have different column schemas or different timestamp encodings → **they are not the same source.** Flag it and split.
 
-When the asset is shared across many flights, the dataset name should describe the source (and optionally the asset), not the flight. Use stable scope names per asset: `dataflash`, `mcu_telemetry`, `gimbal`, `flight_video`, etc. The scope name appears in `nom asset add-dataset <ASSET_RID> <SCOPE> <DATASET_RID>`. Reuse the same scope name across flights — that's the whole point.
+When the asset is shared across many flights, the dataset name should describe the source (and optionally the asset), not the flight. Use stable scope names per asset: `dataflash`, `mcu_telemetry`, `gimbal`, `flight_video`, etc. The scope name appears in `nomctl asset add-dataset <ASSET_RID> <SCOPE> <DATASET_RID>`. Reuse the same scope name across flights — that's the whole point.
 
 If no asset is involved (run-only ingest), it's still one dataset per source _for that run_, not one per file — unless the files genuinely come from different sources.
 
@@ -290,36 +290,36 @@ Wait for an explicit "go" from the user. If they push back on anything, revise t
 
 In this order:
 
-1. **Create asset(s)** (if not reusing): `nom asset create --name ... --label ... --property K V ...`. Capture the returned RID.
-2. **Create run(s)**: `nom run create --name ... --start ... --end ... [--asset <ASSET_RID>...] --label ... --property K V ...`. `--asset` is repeatable. Capture the run RID. Do **not** attach data sources to runs here — runs that link to an asset inherit the asset's data sources for the run's time window. See step 4 for where data sources go.
+1. **Create asset(s)** (if not reusing): `nomctl asset create --name ... --label ... --property K V ...`. Capture the returned RID.
+2. **Create run(s)**: `nomctl run create --name ... --start ... --end ... [--asset <ASSET_RID>...] --label ... --property K V ...`. `--asset` is repeatable. Capture the run RID. Do **not** attach data sources to runs here — runs that link to an asset inherit the asset's data sources for the run's time window. See step 4 for where data sources go.
 3. **For each (owner, source) dataset in the plan**, do this:
 
    a. **First file** — create the dataset and attach to its owner. The first ingest of a (owner, source) bucket uses `--name`; capture the resulting dataset RID. Then attach once.
 
    ```sh
    # Tabular — first file in the bucket
-   nom ingest csv <FILE_1> --name <DATASET_NAME> \
+   nomctl ingest csv <FILE_1> --name <DATASET_NAME> \
      --timestamp-column <COL> --timestamp-type <SPEC> [--timestamp-offset <RFC3339>] \
      --label ingested-by-skill ...
    # → captures DATASET_RID from output line `Dataset RID: ri.…`
 
    # MCAP — first file. Always exclude video topics.
-   nom ingest mcap <FILE_1> --name <DATASET_NAME> \
+   nomctl ingest mcap <FILE_1> --name <DATASET_NAME> \
      [--include-topic <T>]... --exclude-topic <VIDEO_T>... [--ignore-invalid-topics] ...
 
    # Attach the new dataset to its owner (once per dataset, not once per file).
    # Use the asset when an asset exists; otherwise the run.
-   nom asset add-dataset <ASSET_RID> <SCOPE_NAME> <DATASET_RID>
-   nom run   add-dataset <RUN_RID>   <SCOPE_NAME> <DATASET_RID>   # only when no asset
+   nomctl asset add-dataset <ASSET_RID> <SCOPE_NAME> <DATASET_RID>
+   nomctl run   add-dataset <RUN_RID>   <SCOPE_NAME> <DATASET_RID>   # only when no asset
    ```
 
    b. **Subsequent files in the same bucket** — append to the existing dataset using `--dataset <RID>`. No re-attach.
 
    ```sh
-   nom ingest csv     <FILE_2> --dataset <DATASET_RID> \
+   nomctl ingest csv     <FILE_2> --dataset <DATASET_RID> \
      --timestamp-column <COL> --timestamp-type <SPEC> ...
-   nom ingest mcap    <FILE_2> --dataset <DATASET_RID> --exclude-topic <VIDEO_T>... ...
-   nom ingest parquet <FILE_2> --dataset <DATASET_RID> --timestamp-column <COL> --timestamp-type <SPEC> ...
+   nomctl ingest mcap    <FILE_2> --dataset <DATASET_RID> --exclude-topic <VIDEO_T>... ...
+   nomctl ingest parquet <FILE_2> --dataset <DATASET_RID> --timestamp-column <COL> --timestamp-type <SPEC> ...
    ```
 
    All ingest forms (`csv`, `parquet`, `mcap`, `journal-json`, `ardupilot-dataflash`) support `--dataset <RID>` to append to an existing dataset. Append-time flags like `--label` / `--property` / `--description` are only allowed with `--name`; metadata stays as set by the first ingest.
@@ -328,21 +328,21 @@ In this order:
 
    ```sh
    # First file
-   nom ingest video      <FILE_1> --name <VIDEO_NAME> --start <RFC3339> ...
-   nom ingest mcap-video <FILE_1> --topic <TOPIC> --name <VIDEO_NAME> ...
+   nomctl ingest video      <FILE_1> --name <VIDEO_NAME> --start <RFC3339> ...
+   nomctl ingest mcap-video <FILE_1> --topic <TOPIC> --name <VIDEO_NAME> ...
    # → captures VIDEO_RID
-   nom asset add-video <ASSET_RID> <SCOPE_NAME> <VIDEO_RID>   # or `nom run add-video` if no asset
+   nomctl asset add-video <ASSET_RID> <SCOPE_NAME> <VIDEO_RID>   # or `nomctl run add-video` if no asset
 
    # Subsequent files append to the same video
-   nom ingest video      <FILE_2> --video <VIDEO_RID> --start <RFC3339> ...
-   nom ingest mcap-video <FILE_2> --video <VIDEO_RID> --topic <TOPIC> ...
+   nomctl ingest video      <FILE_2> --video <VIDEO_RID> --start <RFC3339> ...
+   nomctl ingest mcap-video <FILE_2> --video <VIDEO_RID> --topic <TOPIC> ...
    ```
 
 5. **Attach rule (recap).** When an asset exists for a run, all data sources attach to the **asset**, and the run links via `--asset <RID>`. Only attach to a run directly when no asset is involved. Never mix — for any given run, its data sources live on _either_ its asset(s) _or_ the run itself, but not both. If a run has multiple assets and a dataset clearly came from one of them (e.g. per-asset subfolders), attach to that specific asset; ask before guessing.
 
    Pick stable, snake_case scope/ref names derived from the source, not the filename. Use the **same** scope name across runs/flights for the same source on the same asset — that's how the data accumulates under one name in the UI. For MCAP video resources, derive from the topic (e.g. topic `/camera/front/image_raw` → `camera_front`).
 
-6. After ingests finish, optionally call `nom channel set` to attach descriptions/units if the user provided a channel dictionary in sidecar metadata.
+6. After ingests finish, optionally call `nomctl channel set` to attach descriptions/units if the user provided a channel dictionary in sidecar metadata.
 
 #### Parallelism and failure cost
 
@@ -358,14 +358,14 @@ Mass-parallel ingest is expensive to fail: ingesting a dozen files concurrently 
 The CLI prints resource-typed RID lines, not bare `RID:`. Grep for the exact prefix:
 
 ```sh
-# After: nom ingest csv ...
-nom ingest csv <PATH> --name <N> ... | tee /tmp/ingest.out
+# After: nomctl ingest csv ...
+nomctl ingest csv <PATH> --name <N> ... | tee /tmp/ingest.out
 DATASET_RID=$(grep -oE 'Dataset RID: ri\.[^ ]+' /tmp/ingest.out | awk '{print $3}')
 
-# After: nom ingest video ... or nom ingest mcap-video ...
+# After: nomctl ingest video ... or nomctl ingest mcap-video ...
 VIDEO_RID=$(grep -oE 'Video RID: ri\.[^ ]+' /tmp/ingest.out | awk '{print $3}')
 
-# After: nom asset create / nom run create
+# After: nomctl asset create / nomctl run create
 RID=$(grep -oE 'ri\.[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+\.[a-f0-9-]+' /tmp/create.out | head -1)
 ```
 
@@ -375,8 +375,8 @@ If you got an empty RID once, fix the parser before reusing it across N more ing
 
 After execution:
 
-- `nom run get <RUN_RID>` for each run, confirm the data sources are attached.
-- For datasets, list the channels via `nom channel list <DATASET_RID>` and spot-check a few names.
+- `nomctl run get <RUN_RID>` for each run, confirm the data sources are attached.
+- For datasets, list the channels via `nomctl channel list <DATASET_RID>` and spot-check a few names.
 - Print a final summary with web URLs (the SDK exposes `nominal_url()`; the CLI prints links on `get` for assets/runs/datasets).
 
 If anything failed mid-execution, do not auto-rollback. Report what was created with RIDs so the user can clean up or retry, and stop.
@@ -385,68 +385,68 @@ If anything failed mid-execution, do not auto-rollback. Report what was created 
 
 - **Wrong timestamp unit**: ingesting `epoch:milliseconds` data as `epoch:seconds` produces datasets dated in 1970. Always confirm if confidence is anything below "high".
 - **Duplicate runs**: re-running this skill on the same folder will create duplicate runs unless you list and check first. Always offer to reuse before creating.
-- **Mass-ingest in one transaction**: there isn't one. Each `nom ingest` call is independent. If you fail halfway, you have orphans. Run the first ingest sequentially to validate the command and the RID-parsing, then fan out.
+- **Mass-ingest in one transaction**: there isn't one. Each `nomctl ingest` call is independent. If you fail halfway, you have orphans. Run the first ingest sequentially to validate the command and the RID-parsing, then fan out.
 - **Attaching data to runs when an asset exists**: if the run is linked to an asset, the dataset/video belongs on the _asset_, not the run. The run inherits it. Mixing the two patterns within one ingest leaves the user unable to find their data.
 - **One dataset per file (instead of per source)**: ingesting `WNG-001/flight1/dataflash.bin` and `WNG-001/flight2/dataflash.bin` as two separate datasets is wrong. A dataset is a table; same asset + same source (same schema) = same table, and the second file appends with `--dataset <RID>`. The dataset accumulates across flights; Nominal slices it by each run's `start`/`end`. Same rule for videos with `--video <RID>`.
-- **Profile delivery**: prefer `NOMINAL_PROFILE=<NAME> nom <SUBCOMMAND> ...` (env-var prefix is safe in any fresh shell). If you use the flag instead, it goes **before** the subcommand: `nom --profile <NAME> <SUBCOMMAND>` — never `nom <SUBCOMMAND> --profile <NAME>`.
-- **Shell variable expansion for flags**: don't pack multi-word flags into one string variable (`P="--profile foo"; nom $P …`). Use the env-var prefix or inline the flag.
+- **Profile delivery**: prefer `NOMINAL_PROFILE=<NAME> nomctl <SUBCOMMAND> ...` (env-var prefix is safe in any fresh shell). If you use the flag instead, it goes **before** the subcommand: `nomctl --profile <NAME> <SUBCOMMAND>` — never `nomctl <SUBCOMMAND> --profile <NAME>`.
+- **Shell variable expansion for flags**: don't pack multi-word flags into one string variable (`P="--profile foo"; nomctl $P …`). Use the env-var prefix or inline the flag.
 - **Workspace mismatch**: if the user's profile has a `workspace_rid` set, every resource you create lands in that workspace. If they want a different workspace, they need a different profile. Don't try to override per-call.
-- **Don't paste tokens into chat**. Have the user run `nom config profile add` themselves; verify with `nom user who-am-i`.
-- **Never call `nom api` or `nom endpoint list`.** They expose raw REST/gRPC endpoints (archive, delete, configuration changes) with no guard-rails and can cause irreversible, cross-tenant damage. If the task seems to need an endpoint with no dedicated `nom <subcommand>` for it, stop and ask the user — they will run it themselves if appropriate.
+- **Don't paste tokens into chat**. Have the user run `nomctl config profile add` themselves; verify with `nomctl user who-am-i`.
+- **Never call `nomctl api` or `nomctl endpoint list`.** They expose raw REST/gRPC endpoints (archive, delete, configuration changes) with no guard-rails and can cause irreversible, cross-tenant damage. If the task seems to need an endpoint with no dedicated `nomctl <subcommand>` for it, stop and ask the user — they will run it themselves if appropriate.
 
 ## When this skill does not fit
 
 - **Streaming / live data** (Nominal connections, gRPC streaming ingest): out of scope. Point the user at the streaming docs.
-- **Already-modeled data needing a re-ingest**: use e.g. `nom ingest csv --dataset <RID>` to add to an existing dataset rather than creating a new one. Skip asset/run creation.
+- **Already-modeled data needing a re-ingest**: use e.g. `nomctl ingest csv --dataset <RID>` to add to an existing dataset rather than creating a new one. Skip asset/run creation.
 
 ## Quick command reference
 
 ```sh
 # Auth
-nom config profile add <NAME> --url <URL> --token <TOKEN> [--workspace-rid <RID>]
-nom user who-am-i
+nomctl config profile add <NAME> --url <URL> --token <TOKEN> [--workspace-rid <RID>]
+nomctl user who-am-i
 
 # Discovery (idempotent reads). Prefer `search` over `list` on non-trivial workspaces.
-nom asset search   --substring <TEXT> [--label L]... [--property K V]...
-nom run search     --substring <TEXT> [--label L]... [--property K V]...
-nom asset get <RID> ;  nom run get <RID> ;  nom dataset get <RID>
-nom asset list ; nom run list ; nom dataset list   # workspace-wide dump; use sparingly
+nomctl asset search   --substring <TEXT> [--label L]... [--property K V]...
+nomctl run search     --substring <TEXT> [--label L]... [--property K V]...
+nomctl asset get <RID> ;  nomctl run get <RID> ;  nomctl dataset get <RID>
+nomctl asset list ; nomctl run list ; nomctl dataset list   # workspace-wide dump; use sparingly
 
 # Create
-nom asset create   --name <N> [--description ...] [--label L]... [--property K V]...
-nom run create     --name <N> --start <RFC3339> [--end <RFC3339>] [--asset <RID>]... [--label L]... [--property K V]...
-nom dataset create --name <N> ...   # only if you need an empty dataset; ingest creates one atomically
-nom video create   --name <N> ...
+nomctl asset create   --name <N> [--description ...] [--label L]... [--property K V]...
+nomctl run create     --name <N> --start <RFC3339> [--end <RFC3339>] [--asset <RID>]... [--label L]... [--property K V]...
+nomctl dataset create --name <N> ...   # only if you need an empty dataset; ingest creates one atomically
+nomctl video create   --name <N> ...
 
 # Ingest — every form takes either --name <NEW_NAME> or --dataset/--video <EXISTING_RID>.
 # First file in a bucket uses --name. Subsequent files from the same source
 # append with --dataset / --video. Waits by default; pass --no-wait to detach.
-nom ingest csv                 <PATH> {--name <N> | --dataset <RID>} --timestamp-column <COL> --timestamp-type <SPEC> [--timestamp-offset <RFC3339>]
-nom ingest parquet             <PATH> {--name <N> | --dataset <RID>} --timestamp-column <COL> --timestamp-type <SPEC> [--archive]
-nom ingest mcap                <PATH> {--name <N> | --dataset <RID>} [--include-topic <T>]... [--exclude-topic <T>]... [--ignore-invalid-topics]
-nom ingest mcap-video          <PATH> {--name <N> | --video   <RID>} --topic <TOPIC>     # foxglove.CompressedVideo or raw H.264 only
-nom ingest journal-json        <PATH> {--name <N> | --dataset <RID>} [--channel <NAME>]
-nom ingest ardupilot-dataflash <PATH> {--name <N> | --dataset <RID>}
-nom ingest video               <PATH> {--name <N> | --video   <RID>} --start <RFC3339>
+nomctl ingest csv                 <PATH> {--name <N> | --dataset <RID>} --timestamp-column <COL> --timestamp-type <SPEC> [--timestamp-offset <RFC3339>]
+nomctl ingest parquet             <PATH> {--name <N> | --dataset <RID>} --timestamp-column <COL> --timestamp-type <SPEC> [--archive]
+nomctl ingest mcap                <PATH> {--name <N> | --dataset <RID>} [--include-topic <T>]... [--exclude-topic <T>]... [--ignore-invalid-topics]
+nomctl ingest mcap-video          <PATH> {--name <N> | --video   <RID>} --topic <TOPIC>     # foxglove.CompressedVideo or raw H.264 only
+nomctl ingest journal-json        <PATH> {--name <N> | --dataset <RID>} [--channel <NAME>]
+nomctl ingest ardupilot-dataflash <PATH> {--name <N> | --dataset <RID>}
+nomctl ingest video               <PATH> {--name <N> | --video   <RID>} --start <RFC3339>
 
 # Attach (run once per dataset/video, not once per file ingested into it)
-nom asset add-dataset    <ASSET_RID> <SCOPE_NAME> <DATASET_RID>     # preferred when asset exists
-nom asset add-video      <ASSET_RID> <SCOPE_NAME> <VIDEO_RID>
-nom asset add-connection <ASSET_RID> <SCOPE_NAME> <CONNECTION_RID>
-nom run   add-dataset    <RUN_RID>   <REF_NAME>   <DATASET_RID>     # only when no asset
-nom run   add-video      <RUN_RID>   <REF_NAME>   <VIDEO_RID>
-nom run   add-connection <RUN_RID>   <REF_NAME>   <CONNECTION_RID>
+nomctl asset add-dataset    <ASSET_RID> <SCOPE_NAME> <DATASET_RID>     # preferred when asset exists
+nomctl asset add-video      <ASSET_RID> <SCOPE_NAME> <VIDEO_RID>
+nomctl asset add-connection <ASSET_RID> <SCOPE_NAME> <CONNECTION_RID>
+nomctl run   add-dataset    <RUN_RID>   <REF_NAME>   <DATASET_RID>     # only when no asset
+nomctl run   add-video      <RUN_RID>   <REF_NAME>   <VIDEO_RID>
+nomctl run   add-connection <RUN_RID>   <REF_NAME>   <CONNECTION_RID>
 
 # Update metadata
-nom asset update   <RID> [-n NAME] [-d DESC] [-l LABEL]... [-p K V]... [--clear-labels] [--clear-properties]
-nom run update     <RID> ...
-nom dataset update <RID> ...
+nomctl asset update   <RID> [-n NAME] [-d DESC] [-l LABEL]... [-p K V]... [--clear-labels] [--clear-properties]
+nomctl run update     <RID> ...
+nomctl dataset update <RID> ...
 
 # Channels (optional polish)
-nom channel list   <DATA_SOURCE_RID>
-nom channel set    <DATA_SOURCE_RID> <CHANNEL> [--description ...] [--unit ...]
+nomctl channel list   <DATA_SOURCE_RID>
+nomctl channel set    <DATA_SOURCE_RID> <CHANNEL> [--description ...] [--unit ...]
 ```
 
-**`nom api` is off-limits to this skill.** It's a raw REST/gRPC escape hatch intended for humans manually probing the API. Endpoints reached this way can have destructive, irreversible side effects (archive, delete, configuration changes, cross-tenant operations) with none of the guard-rails the dedicated subcommands have. If a task seems to require an endpoint that doesn't have a `nom <subcommand>` for it — stop and ask the user. Do not call `nom api`, `nom endpoint list`, or any other raw-endpoint tool to "work around" a missing subcommand.
+**`nomctl api` is off-limits to this skill.** It's a raw REST/gRPC escape hatch intended for humans manually probing the API. Endpoints reached this way can have destructive, irreversible side effects (archive, delete, configuration changes, cross-tenant operations) with none of the guard-rails the dedicated subcommands have. If a task seems to require an endpoint that doesn't have a `nomctl <subcommand>` for it — stop and ask the user. Do not call `nomctl api`, `nomctl endpoint list`, or any other raw-endpoint tool to "work around" a missing subcommand.
 
-Always run `nom <subcommand> --help` if you're unsure about a flag. The CLI is the source of truth — this skill can drift.
+Always run `nomctl <subcommand> --help` if you're unsure about a flag. The CLI is the source of truth — this skill can drift.
