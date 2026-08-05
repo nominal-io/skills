@@ -1,0 +1,14 @@
+{
+  "name": "nominal",
+  "owner": {
+    "name": "Nominal",
+    "url": "https://github.com/nominal-io"
+  },
+  "plugins": [
+    {
+      "name": "nominal-skills",
+      "source": "./",
+      "description": "Open agent skills from Nominal"
+    }
+  ]
+}

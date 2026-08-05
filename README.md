@@ -44,7 +44,20 @@ npx skills add nominal-io/skills -g -a codex
 
 ### Claude Code
 
-Install with the skills CLI:
+Install the native Claude Code plugin from this marketplace:
+
+```text
+/plugin marketplace add nominal-io/skills
+/plugin install nominal-skills@nominal
+```
+
+Invoke the installed skill with its plugin namespace:
+
+```text
+/nominal-skills:nominal-ingest
+```
+
+Alternatively, install the skill directly with the skills CLI:
 
 ```sh
 npx skills add nominal-io/skills -a claude-code
@@ -86,7 +99,7 @@ After installing, start or reload your agent and ask it to use the skill:
 
 - **Cursor:** type `/nominal-ingest`, or ask for help ingesting a folder of data.
 - **Codex:** type `$nominal-ingest` (or `/skills` and select it).
-- **Claude Code:** type `/nominal-ingest`.
+- **Claude Code:** after native plugin installation, type `/nominal-skills:nominal-ingest`.
 - **Other agents:** type `/nominal-ingest` if slash commands are supported, or ask the agent to list its loaded skills.
 
 The agent should recognize the skill and follow the planning-first workflow described in
