@@ -18,5 +18,12 @@
     "nomctl",
     "nominal"
   ],
+  "interface": {
+    "displayName": "Nominal Skills",
+    "shortDescription": "Hardware telemetry skills",
+    "longDescription": "Skills for nomctl workflows over hardware telemetry, test and flight campaign data, and sensor time-series.",
+    "developerName": "Nominal",
+    "category": "Developer Tools"
+  },
   "skills": "./skills/"
 }
