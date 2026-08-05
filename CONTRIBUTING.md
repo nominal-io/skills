@@ -56,6 +56,11 @@ Before opening a PR:
    python3 scripts/validate_skills.py
    ```
 
+## GitHub Actions
+
+- Pin every workflow action to a full 40-character commit SHA with a trailing `# vX.Y.Z` comment.
+- Never interpolate user-controlled `${{ ... }}` values directly in `run:` blocks; pass them through `env:`.
+
 ## Pull requests
 
 - Keep each PR focused; avoid unrelated formatting or content changes.
