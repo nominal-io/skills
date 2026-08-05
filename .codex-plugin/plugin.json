@@ -1,7 +1,7 @@
 {
   "name": "nominal-skills",
   "version": "1.0.0",
-  "description": "Open agent skills from Nominal",
+  "description": "Agent skills from Nominal",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
@@ -10,8 +10,11 @@
   "repository": "https://github.com/nominal-io/skills",
   "license": "Apache-2.0",
   "keywords": [
-    "data-ingestion",
     "telemetry",
+    "hardware-testing",
+    "test-data",
+    "sensor-data",
+    "time-series",
     "nomctl",
     "nominal"
   ],

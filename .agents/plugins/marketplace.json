@@ -3,7 +3,7 @@
   "interface": {
     "displayName": "Nominal Plugins"
   },
-  "description": "Nominal's open agent skills for data ingestion and telemetry workflows.",
+  "description": "Nominal agent skills for hardware telemetry, test data, and sensor time-series workflows.",
   "plugins": [
     {
       "name": "nominal-skills",
@@ -15,11 +15,14 @@
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
-      "category": "Productivity",
-      "description": "Open agent skills from Nominal",
+      "category": "hardware-telemetry",
+      "description": "Agent skills from Nominal",
       "keywords": [
-        "data-ingestion",
         "telemetry",
+        "hardware-testing",
+        "test-data",
+        "sensor-data",
+        "time-series",
         "nomctl",
         "nominal"
       ],
