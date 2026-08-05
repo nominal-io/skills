@@ -31,11 +31,12 @@ class Validator:
         location = f"{relative}:{line}" if line is not None else str(relative)
         self.errors.append(f"ERROR {location}: {message}")
 
-    def check(self, description: str) -> None:
-        self.passed.append(description)
+    def check(self, description: str, starting_errors: int) -> None:
+        if len(self.errors) == starting_errors:
+            self.passed.append(description)
 
 
-def parse_frontmatter(path: Path, validator: Validator) -> dict[str, str] | None:
+def parse_frontmatter(path: Path, validator: Validator) -> dict[str, str | list[str]] | None:
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0] != "---":
         validator.error(path, "missing YAML frontmatter opening delimiter", 1)
@@ -46,31 +47,61 @@ def parse_frontmatter(path: Path, validator: Validator) -> dict[str, str] | None
         validator.error(path, "missing YAML frontmatter closing delimiter")
         return None
 
-    values: dict[str, str] = {}
+    values: dict[str, str | list[str]] = {}
     valid = True
-    for line_number, line in enumerate(lines[1:end], 2):
+    line_index = 1
+    while line_index < end:
+        line_number = line_index + 1
+        line = lines[line_index]
         if not line.strip():
+            line_index += 1
             continue
         match = re.fullmatch(r"([A-Za-z0-9_-]+):[ \t]*(.*)", line)
         if not match:
-            validator.error(path, "frontmatter must contain simple `key: value` lines", line_number)
+            validator.error(
+                path,
+                "frontmatter must contain simple `key: value` lines or indented `- item` lists",
+                line_number,
+            )
             valid = False
+            line_index += 1
             continue
         key, value = match.groups()
         if key in values:
             validator.error(path, f"duplicate frontmatter key {key!r}", line_number)
             valid = False
-        values[key] = value.strip()
+        value = value.strip()
+        if value in {"|", ">", "|-", "|+", ">-", ">+"}:
+            validator.error(path, "multi-line scalar frontmatter values are not supported", line_number)
+            valid = False
+            line_index += 1
+            continue
+        if not value:
+            items: list[str] = []
+            next_index = line_index + 1
+            while next_index < end:
+                item_match = re.fullmatch(r"[ \t]+-[ \t]*(.+)", lines[next_index])
+                if not item_match:
+                    break
+                items.append(item_match.group(1).strip())
+                next_index += 1
+            values[key] = items if items else value
+            line_index = next_index
+            continue
+        values[key] = value
+        line_index += 1
     return values if valid else None
 
 
 def validate_skill_files(validator: Validator) -> list[str]:
+    frontmatter_start = len(validator.errors)
     skills_root = ROOT / "skills"
     skill_names: list[str] = []
     if not skills_root.is_dir():
         validator.error(skills_root, "skills directory does not exist")
         return skill_names
 
+    markdown_files: list[Path] = []
     for skill_dir in sorted(path for path in skills_root.iterdir() if path.is_dir()):
         skill_names.append(skill_dir.name)
         skill_file = skill_dir / "SKILL.md"
@@ -81,17 +112,17 @@ def validate_skill_files(validator: Validator) -> list[str]:
         frontmatter = parse_frontmatter(skill_file, validator)
         if frontmatter is None:
             continue
-        name = frontmatter.get("name", "")
-        description = frontmatter.get("description", "")
-        if not name:
-            validator.error(skill_file, "frontmatter name must be non-empty")
+        name = frontmatter.get("name")
+        description = frontmatter.get("description")
+        if not isinstance(name, str) or not name.strip():
+            validator.error(skill_file, "frontmatter name must be a non-empty scalar string")
         elif name != skill_dir.name:
             validator.error(
                 skill_file,
                 f"frontmatter name {name!r} must match directory {skill_dir.name!r}",
             )
-        if not description:
-            validator.error(skill_file, "frontmatter description must be non-empty")
+        if not isinstance(description, str) or not description.strip():
+            validator.error(skill_file, "frontmatter description must be a non-empty scalar string")
         elif len(description) > MAX_DESCRIPTION_LENGTH:
             validator.error(
                 skill_file,
@@ -99,11 +130,12 @@ def validate_skill_files(validator: Validator) -> list[str]:
                 f"limits descriptions to {MAX_DESCRIPTION_LENGTH} characters",
             )
 
-        markdown_files = [skill_file, *sorted((skill_dir / "references").glob("*.md"))]
-        validate_markdown_links(markdown_files, validator)
+        markdown_files.extend([skill_file, *sorted((skill_dir / "references").glob("*.md"))])
 
-    if not validator.errors:
-        validator.check(f"{len(skill_names)} skill directories and their frontmatter")
+    validator.check(f"{len(skill_names)} skill directories and their frontmatter", frontmatter_start)
+    links_start = len(validator.errors)
+    validate_markdown_links(markdown_files, validator)
+    validator.check("relative markdown links in skills and references", links_start)
     return skill_names
 
 
@@ -127,8 +159,6 @@ def validate_markdown_links(paths: list[Path], validator: Validator) -> None:
                         f"relative markdown link does not resolve: {target}",
                         line_number,
                     )
-    if not validator.errors:
-        validator.check("relative markdown links in skills and references")
 
 
 def load_json(path: Path, validator: Validator) -> dict[str, Any] | None:
@@ -155,12 +185,14 @@ def require_string(data: dict[str, Any], key: str, path: Path, validator: Valida
 
 
 def validate_manifests(validator: Validator) -> None:
+    manifests_start = len(validator.errors)
     claude_plugin_path, claude_marketplace_path, codex_plugin_path, codex_marketplace_path = MANIFESTS
     claude_plugin = load_json(claude_plugin_path, validator)
     claude_marketplace = load_json(claude_marketplace_path, validator)
     codex_plugin = load_json(codex_plugin_path, validator)
     codex_marketplace = load_json(codex_marketplace_path, validator)
     if not all((claude_plugin, claude_marketplace, codex_plugin, codex_marketplace)):
+        validator.check("Claude Code and Codex plugin manifests and marketplaces", manifests_start)
         return
 
     claude_name = require_string(claude_plugin, "name", claude_plugin_path, validator)
@@ -191,8 +223,7 @@ def validate_manifests(validator: Validator) -> None:
 
     validate_marketplace(claude_marketplace, claude_marketplace_path, claude_name, validator, "Claude")
     validate_marketplace(codex_marketplace, codex_marketplace_path, codex_name, validator, "Codex")
-    if not validator.errors:
-        validator.check("Claude Code and Codex plugin manifests and marketplaces")
+    validator.check("Claude Code and Codex plugin manifests and marketplaces", manifests_start)
 
 
 def validate_marketplace(
@@ -242,12 +273,14 @@ def validate_marketplace(
 
 
 def validate_readme_catalog(skill_names: list[str], validator: Validator) -> None:
+    catalog_start = len(validator.errors)
     path = ROOT / "README.md"
     lines = path.read_text(encoding="utf-8").splitlines()
     try:
         start = lines.index("## Skills") + 1
     except ValueError:
         validator.error(path, "missing `## Skills` section")
+        validator.check("README skill catalog (0 skills)", catalog_start)
         return
     end = next((index for index in range(start, len(lines)) if lines[index].startswith("## ")), len(lines))
 
@@ -274,8 +307,7 @@ def validate_readme_catalog(skill_names: list[str], validator: Validator) -> Non
         if stale:
             details.append(f"stale {stale}")
         validator.error(path, "skill catalog does not match skills/: " + ", ".join(details))
-    if not validator.errors:
-        validator.check(f"README skill catalog ({len(catalog_names)} skills)")
+    validator.check(f"README skill catalog ({len(catalog_names)} skills)", catalog_start)
 
 
 def main() -> int:
