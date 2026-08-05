@@ -1,5 +1,8 @@
 {
   "name": "nominal",
+  "interface": {
+    "displayName": "Nominal Plugins"
+  },
   "plugins": [
     {
       "name": "nominal-skills",

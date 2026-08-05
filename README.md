@@ -107,7 +107,7 @@ npx skills add git@github.com:nominal-io/skills.git
 After installing, start or reload your agent and ask it to use the skill:
 
 - **Cursor:** type `/nominal-ingest`, or ask for help ingesting a folder of data.
-- **Codex:** type `$nominal-ingest` (or `/skills` and select it) after installing the native plugin.
+- **Codex:** type `$nominal-ingest` (or `/skills` and select it).
 - **Claude Code:** after native plugin installation, type `/nominal-skills:nominal-ingest`.
 - **Other agents:** type `/nominal-ingest` if slash commands are supported, or ask the agent to list its loaded skills.
 
