@@ -50,6 +50,11 @@ Before opening a PR:
 4. Check that it follows the documented workflow, asks for required approval,
    and does not invent missing information.
 5. Review links, commands, and referenced files from a clean checkout.
+6. Run the repository validator:
+
+   ```sh
+   python3 scripts/validate_skills.py
+   ```
 
 ## Pull requests
 
