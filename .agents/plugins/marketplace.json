@@ -3,6 +3,7 @@
   "interface": {
     "displayName": "Nominal Plugins"
   },
+  "description": "Nominal's open agent skills for data ingestion and telemetry workflows.",
   "plugins": [
     {
       "name": "nominal-skills",
@@ -15,6 +16,13 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity",
+      "description": "Open agent skills from Nominal",
+      "keywords": [
+        "data-ingestion",
+        "telemetry",
+        "nomctl",
+        "nominal"
+      ],
       "interface": {
         "displayName": "Nominal Skills"
       }
