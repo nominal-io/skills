@@ -145,6 +145,9 @@ def validate_markdown_links(paths: list[Path], validator: Validator) -> None:
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for raw_target in link_pattern.findall(line):
                 target = raw_target.strip()
+                if not target:
+                    validator.error(path, "markdown link has an empty target", line_number)
+                    continue
                 if target.startswith("<") and ">" in target:
                     target = target[1 : target.index(">")]
                 else:
@@ -191,7 +194,7 @@ def validate_manifests(validator: Validator) -> None:
     claude_marketplace = load_json(claude_marketplace_path, validator)
     codex_plugin = load_json(codex_plugin_path, validator)
     codex_marketplace = load_json(codex_marketplace_path, validator)
-    if not all((claude_plugin, claude_marketplace, codex_plugin, codex_marketplace)):
+    if any(value is None for value in (claude_plugin, claude_marketplace, codex_plugin, codex_marketplace)):
         validator.check("Claude Code and Codex plugin manifests and marketplaces", manifests_start)
         return
 
