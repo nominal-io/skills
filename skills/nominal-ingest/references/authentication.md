@@ -21,13 +21,13 @@ Never ask the user to paste a token into chat. Ask them to run this in their own
 
 ```sh
 nomctl config profile add <NAME> \
-  --url https://api.<tenant-host> \
+  --url https://<API_HOST> \
   --token <TOKEN> \
   --workspace-rid <WORKSPACE_RID>
 ```
 
 - `<NAME>` is a short profile name such as `prod`.
-- `<tenant-host>` is deployment-specific; ask the user. Examples include `api.gov.nominal.io`, `api-staging.gov.nominal.io`, and a self-hosted `api.nominal.<customer-domain>`.
+- `<API_HOST>` is deployment-specific; ask the user. Examples include `api.gov.nominal.io`, `api-staging.gov.nominal.io`, and a self-hosted `api.nominal.<customer-domain>`.
 - `<TOKEN>` comes from Nominal user settings → API keys, or the user's SSO/JWT flow. It stays in their terminal.
 - `<WORKSPACE_RID>` is required and comes from the intended workspace's settings.
 

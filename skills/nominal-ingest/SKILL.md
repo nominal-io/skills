@@ -7,7 +7,7 @@ description: Nominal ingest for a folder of test or campaign data. Use when a us
 
 Turn an on-disk collection into a clean Nominal model: durable assets, bounded historical runs, and reusable data sources. Work in two gates: **plan** the entire ingest, then **execute** only after the user explicitly approves that plan.
 
-Use only dedicated `nomctl` subcommands. When the needed operation has no dedicated subcommand, ask the user to perform it; raw API and endpoint commands are outside this skill.
+Use only dedicated `nomctl` subcommands. When the needed operation has no dedicated subcommand, stop and ask the user what to do next. **Never call `nomctl api` or `nomctl endpoint list`.** They expose raw REST/gRPC operations that can archive or delete data, change configuration, and bypass guard rails. This can cause irreversible cross-tenant damage.
 
 ## 1. Establish a safe starting point
 
