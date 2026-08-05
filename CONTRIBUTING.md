@@ -50,6 +50,16 @@ Before opening a PR:
 4. Check that it follows the documented workflow, asks for required approval,
    and does not invent missing information.
 5. Review links, commands, and referenced files from a clean checkout.
+6. Run the repository validator:
+
+   ```sh
+   uv run scripts/validate_skills.py
+   ```
+
+## GitHub Actions
+
+- Pin every workflow action to a full 40-character commit SHA with a trailing `# vX.Y.Z` comment.
+- Never interpolate user-controlled `${{ ... }}` values directly in `run:` blocks; pass them through `env:`.
 
 ## Pull requests
 
