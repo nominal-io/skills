@@ -1,0 +1,10 @@
+{
+  "name": "nominal-skills",
+  "version": "1.0.0",
+  "description": "Open agent skills from Nominal",
+  "author": {
+    "name": "Nominal",
+    "url": "https://github.com/nominal-io"
+  },
+  "skills": "./skills/"
+}

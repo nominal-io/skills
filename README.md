@@ -30,7 +30,16 @@ npx skills add nominal-io/skills -g -a cursor
 
 ### Codex
 
-Install with the skills CLI:
+Install the native Codex plugin from this marketplace:
+
+```sh
+codex plugin marketplace add nominal-io/skills
+```
+
+Then install `nominal-skills` from the `nominal` marketplace in Codex. The
+plugin includes the `nominal-ingest` skill.
+
+Alternatively, install the skill directly with the skills CLI:
 
 ```sh
 npx skills add nominal-io/skills -a codex
@@ -98,7 +107,7 @@ npx skills add git@github.com:nominal-io/skills.git
 After installing, start or reload your agent and ask it to use the skill:
 
 - **Cursor:** type `/nominal-ingest`, or ask for help ingesting a folder of data.
-- **Codex:** type `$nominal-ingest` (or `/skills` and select it).
+- **Codex:** type `$nominal-ingest` (or `/skills` and select it) after installing the native plugin.
 - **Claude Code:** after native plugin installation, type `/nominal-skills:nominal-ingest`.
 - **Other agents:** type `/nominal-ingest` if slash commands are supported, or ask the agent to list its loaded skills.
 
