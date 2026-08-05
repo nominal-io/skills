@@ -53,8 +53,7 @@ Before opening a PR:
 6. Run the repository validator:
 
    ```sh
-   python3 -m pip install pyyaml==6.0.2
-   python3 scripts/validate_skills.py
+   uv run scripts/validate_skills.py
    ```
 
 ## GitHub Actions
