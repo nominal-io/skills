@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to Nominal's open agent skills.
+Thanks for contributing to Nominal's agent skills.
 
 ## Add a skill
 
