@@ -4,11 +4,19 @@
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
   },
+  "description": "Nominal's open agent skills for data ingestion and telemetry workflows.",
   "plugins": [
     {
       "name": "nominal-skills",
       "source": "./",
-      "description": "Open agent skills from Nominal"
+      "description": "Open agent skills from Nominal",
+      "category": "data-engineering",
+      "keywords": [
+        "data-ingestion",
+        "telemetry",
+        "nomctl",
+        "nominal"
+      ]
     }
   ]
 }
