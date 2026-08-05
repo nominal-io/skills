@@ -1,10 +1,29 @@
 {
   "name": "nominal-skills",
   "version": "1.0.0",
-  "description": "Open agent skills from Nominal",
+  "description": "Agent skills from Nominal",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
+  },
+  "homepage": "https://github.com/nominal-io/skills#readme",
+  "repository": "https://github.com/nominal-io/skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "telemetry",
+    "hardware-testing",
+    "test-data",
+    "sensor-data",
+    "time-series",
+    "nomctl",
+    "nominal"
+  ],
+  "interface": {
+    "displayName": "Nominal Skills",
+    "shortDescription": "Hardware telemetry skills",
+    "longDescription": "Skills for nomctl workflows over hardware telemetry, test and flight campaign data, and sensor time-series.",
+    "developerName": "Nominal",
+    "category": "Developer Tools"
   },
   "skills": "./skills/"
 }

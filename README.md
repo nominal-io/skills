@@ -1,6 +1,6 @@
 # Nominal agent skills
 
-Nominal's open [agent skills](https://agentskills.io/specification): packaged instructions that coding agents can load to perform a focused task.
+Nominal's [agent skills](https://agentskills.io/specification): packaged instructions that coding agents can load to perform a focused task.
 
 ## Skills
 
