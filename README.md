@@ -68,9 +68,9 @@ If you cannot use `npx`, clone the repository and copy or symlink
 `skills/nominal-ingest` into the agent's skills directory:
 
 ```sh
-git clone https://github.com/nominal-io/skills.git
+git clone https://github.com/nominal-io/skills.git nominal-skills
 mkdir -p .agents/skills
-cp -R skills/nominal-ingest .agents/skills/
+cp -R nominal-skills/skills/nominal-ingest .agents/skills/
 ```
 
 Replace `.agents/skills` with the project or user-level skills directory
