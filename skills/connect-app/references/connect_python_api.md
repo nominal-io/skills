@@ -259,12 +259,13 @@ class MyTests(TestWorkflow):
         self.asset_rid = client.get_value("asset_rid", None)
         self.target_v = float(client.get_value("target_voltage", 5.0))
 
-    def test_0_setup(self):
+    def test_energize_supply(self):
         self.client.send_message("psu/command", {"set_voltage": self.target_v, "enable": True})
 
-    def test_a_sanity(self):
+    def test_output_tracks_setpoint(self):
         result = self.client.get_channel_values("psu", "myPSU.ch1_v")
-        v = result["myPSU.ch1_v"]["value"]
+        self.assertIn("myPSU.ch1_v", result, "no reading from the supply")
+        v = float(result["myPSU.ch1_v"]["value"])
         self.assertGreater(v, self.target_v - 0.1)
         self.assertLess(v, self.target_v + 0.1)
         self.addComment(f"Measured {v:.3f} V")
@@ -281,7 +282,7 @@ if __name__ == "__main__":
     MyTests.main()
 ```
 
-- Methods prefixed with `test_` run in the order they are defined in the source file (not alphabetically). Prefixes like `test_0_`, `test_a_`, `test_b_` are a readability convention — they make the intended order visually obvious but do not affect execution order. To reorder steps, move the method definitions.
+- Methods prefixed with `test_` run in the order they are defined in the source file (not alphabetically). Name them for what they do and write them in the order they must run; to reorder steps, move the method definitions. Only `test_*` methods declared directly in the class body are discovered — ones inherited from a base class are not.
 - Discovery only looks at the class's own body, so test methods inherited from an intermediate base class are not run. Define the steps on the workflow class itself.
 - Inherits `unittest.TestCase` assertions: `assertEqual`, `assertGreater`, `assertLess`, `assertAlmostEqual`, `assertIsNotNone`, `fail`, etc., plus `setUp`/`tearDown` around each step. `self.addComment(str)` records step notes on the test record.
 - `self.client` is the `Client` for the running workflow. It is only available while the workflow is running under `main()`.

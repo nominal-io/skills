@@ -36,7 +36,7 @@ If the user gave a freeform description and some of this is ambiguous, ask — d
 - **Trivial / "hello world"-shaped app** (one tab, a few widgets, one script): copy [`assets/hello-world/`](assets/hello-world/) into the target directory and modify in place.
 - **Non-trivial app**: start from a blank `app.connect` and build up, using [`references/patterns.md`](references/patterns.md) for the shape of each script.
 
-When working inside the Nominal `connect` repository, the apps under `test_apps/examples/` are the canonical reference for real-world layouts. Read them rather than copying them — the example layouts are complex and copying one wholesale imports unrelated UI.
+If the user has existing Connect apps on disk, read those for house conventions before inventing your own. Do not copy a large app wholesale — it drags in unrelated UI. Take the layout idioms and leave the rest.
 
 ### Step 3. Write `app.connect`
 
@@ -54,7 +54,7 @@ The one-element rule is the one that bites, because a useful pane usually needs 
 
 Other invariants:
 
-- Every `pane` needs a unique UUIDv4 `id`. Generate one per pane at authoring time — `uuidgen | tr '[:upper:]' '[:lower:]'` (macOS/Linux) or `python -c "import uuid; print(uuid.uuid4())"` — and paste the result directly into the YAML. Never hardcode placeholder strings like `00000000-...` or reuse IDs across panes; duplicates cause egui ID collisions.
+- Every `pane` needs a unique UUIDv4 `id`. Generate one per pane at authoring time — `uuidgen | tr '[:upper:]' '[:lower:]'` (macOS/Linux) or `python -c "import uuid; print(uuid.uuid4())"` — and paste the result directly into the YAML. Never hardcode placeholder strings like `00000000-...` or reuse IDs across panes; duplicates collide and make panes address the wrong widget.
 - Widget `id`s (the `id:` on inputs and buttons) are the keys scripts use with `client.get_value(id)`. Use `snake_case`; must be unique across the app.
 - Stream IDs referenced in plots (`stream_id: foo`) are plain strings — scripts create them implicitly the first time they call `client.stream("foo", ...)`.
 - `on_click_action` has three kinds: `_kind: script` (launches a Python script), `_kind: message` (publishes a dict to a message-bus topic, with `$widget_id` substituted from current UI values), and `_kind: command` (sends a registered command from the command registry).

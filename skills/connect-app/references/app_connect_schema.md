@@ -128,7 +128,7 @@ A pane is a leaf tile containing elements:
   elements: [ <exactly one element> ]
 ```
 
-**`id` must be a UUID** (e.g. `7a13aace-e94a-4552-a461-39c728a54f02`). Use any valid v4. Always write one out: a pane with no `id` gets a fresh UUID on every load, so scripts can't address it and its identity isn't stable. Duplicates will cause egui ID collisions and weird UI behavior.
+**`id` must be a UUID** (e.g. `7a13aace-e94a-4552-a461-39c728a54f02`). Use any valid v4. Always write one out: a pane with no `id` gets a fresh UUID on every load, so scripts can't address it and its identity isn't stable. Duplicates are not rejected at load time, but pane visibility, navigation, and selection all key on the UUID, so a duplicate silently acts on the wrong pane.
 
 ## Elements
 
