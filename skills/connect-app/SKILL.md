@@ -42,18 +42,22 @@ When working inside the Nominal `connect` repository, the apps under `test_apps/
 
 The grammar is large. **Read [`references/app_connect_schema.md`](references/app_connect_schema.md)** to get the full element catalog (tiles, grids, panes, inputs, displays, plots, actions).
 
-**Every app must remain editable in Connect's no-code UI builder.** This is a hard requirement, not a preference — users rearrange apps by hand, and an app that has dropped out of the UI builder cannot be fixed without hand-editing YAML. Three constraints enforce it:
+**Every app must remain editable in Connect's no-code UI builder.** This is a hard requirement, not a preference — users rearrange apps by hand, and an app that has dropped out of the UI builder cannot be fixed without hand-editing YAML. Nothing warns you at load time when an app breaks one of these:
 
-- The top-level `tiles` **must** be a single `layout: tabs` tile. Nest grids inside a tab; never hoist one to the top level.
-- Every pane **must** contain at least one element. Give a spacer pane a `display: header` or `display: markdown` rather than leaving it bare.
+- The top-level `tiles` **must** be exactly one tile, and it **must** be `layout: tabs`. Nest grids inside a tab; never hoist one to the top level.
+- No second `layout: tabs` anywhere below the root — one nested tabs container turns editing off for the whole app.
+- Every pane **must** contain **exactly one** element. Zero renders nothing; two or more locks that pane against editing.
 - Every pane **must** set `should_fill: true`.
+- `lockdown:` **must** be absent.
+
+The one-element rule is the one that bites, because a useful pane usually needs several widgets. Collect them into a single form element — an element with `inputs:` counts as one element and can nest displays, inputs, and buttons together. To place widgets side by side, use a grid of one-element panes rather than one pane holding several elements.
 
 Other invariants:
 
 - Every `pane` needs a unique UUIDv4 `id`. Generate one per pane at authoring time — `uuidgen | tr '[:upper:]' '[:lower:]'` (macOS/Linux) or `python -c "import uuid; print(uuid.uuid4())"` — and paste the result directly into the YAML. Never hardcode placeholder strings like `00000000-...` or reuse IDs across panes; duplicates cause egui ID collisions.
 - Widget `id`s (the `id:` on inputs and buttons) are the keys scripts use with `client.get_value(id)`. Use `snake_case`; must be unique across the app.
 - Stream IDs referenced in plots (`stream_id: foo`) are plain strings — scripts create them implicitly the first time they call `client.stream("foo", ...)`.
-- `on_click_action` has two kinds: `_kind: script` (launches a Python script) and `_kind: message` (publishes a dict to a message-bus topic, with `$widget_id` substituted from current UI values).
+- `on_click_action` has three kinds: `_kind: script` (launches a Python script), `_kind: message` (publishes a dict to a message-bus topic, with `$widget_id` substituted from current UI values), and `_kind: command` (sends a registered command from the command registry).
 - For apps that persist data, populate `streaming.persistence[]` with the target dataset RID and the list of streams to upload.
 
 ### Step 4. Write the Python scripts
@@ -65,21 +69,21 @@ Conventions:
 - Every script starts with `@connect_python.main` wrapping a `main(client)` function.
 - `logger = connect_python.get_logger(__name__)` — this routes to Connect's logs panel.
 - For any hardware handle, register `client.add_shutdown_callback(lambda: thing.close())` early.
-- Put shared strings (stream IDs, message-bus topics, device names) in a `constants.py` so YAML and Python can't drift.
+- Stream IDs, topics, and channel names are plain strings shared between YAML and Python, and nothing type-checks them. A driver script exports its own topic constant and command classes; a `constants.py` holds only what several scripts share. The YAML side has to match by hand.
 - Reading UI: `client.get_value("id", default)` or `client.get_values()` (all at once). Writing UI: `client.set_value("id", value)`.
 - Streaming: `client.stream(stream_id, timestamp, value, name="channel_name")` for single-channel, `client.stream(stream_id, timestamp, values=[...], names=[...])` for multi-channel.
-- Message bus: `client.send_message(topic, dict)` for one-offs; `with MessageBus(client) as bus: bus.subscribe_to_topic(...); bus.wait_for_message()` for subscribers. Use `try_receive_message()` (non-blocking) inside control loops.
-- For `@connect_python.handle_command` handlers, call `client.register_and_wait_for_commands()` at the end of `main` or the process exits.
-- For test workflows, subclass `connect_python.TestWorkflow`. Test methods (`test_*`) run in the order they are defined in the source file, not alphabetically — prefixes like `test_a_`, `test_b_` are just a readability convention that makes the intended order obvious. Set `self.asset_rid` in `start_workflow` to auto-upload to Nominal Core, and always define a final shutdown step that returns hardware to safe state.
+- Driver scripts take typed commands: declare `@connect_python.Command` classes, nest `@connect_python.handle_command` handlers inside `main` so they close over the open hardware handle, and end `main` with `client.register_and_wait_for_commands()` or the process exits. UI buttons reach them with `_kind: command`.
+- Raw message bus is the fallback for schema-less payloads: `client.send_message(topic, dict)` to publish, or `with MessageBus(client) as bus: bus.subscribe_to_topic(...)` to consume. Inside a loop use `try_receive_message()` (non-blocking) rather than `wait_for_message()`.
+- For test workflows, subclass `connect_python.TestWorkflow`. Test methods (`test_*`) run in the order they are defined in the source file, not alphabetically, so give them descriptive names rather than ordering prefixes. Only methods in the class's own body are discovered — inherited `test_*` methods never run. Set `self.asset_rid` in `start_workflow` (using its `client` argument; `self.client` is not available yet there) to auto-upload to Nominal Core, and register safe-shutdown with `self.add_cleanup(...)` so it runs even when a step fails.
 
 ### Step 5. Sanity-check
 
 Before handing back:
 
-1. **UI builder compatibility holds**: top-level `tiles` is a single `layout: tabs`, every pane has `should_fill: true`, and no pane is empty. Check this first — it is the easiest thing to break and the most disruptive to the user.
+1. **UI builder compatibility holds**: top-level `tiles` is exactly one `layout: tabs` tile, no tabs container is nested below it, every pane holds exactly one element and sets `should_fill: true`, and there is no `lockdown:` key. Check this first — it is the easiest thing to break and the most disruptive to the user.
 2. Every widget `id` referenced in `client.get_value`/`get_values` has a matching `input:` entry in `app.connect`.
 3. Every `stream_id` used in `client.stream` appears in at least one plot, `display: stream_value`, or `streaming.persistence[].streams[]`.
-4. Every message-bus topic published from `_kind: message` is subscribed to by a script (and vice versa).
+4. Every topic an action targets is served by a script: `_kind: message` topics have a subscriber, and `_kind: command` topics have a registered command whose `command_id` matches.
 5. All pane `id`s are UUIDv4s and unique.
 6. Shutdown callbacks registered for anything that opens a hardware/network handle.
 
@@ -88,10 +92,10 @@ Do not attempt to run the app — it requires the Connect GUI on the user's mach
 ## Quick decision guide
 
 - User wants one button that runs a script and shows a result? → Pattern 1 in `references/patterns.md`. Start from `assets/hello-world/`.
-- User wants live readings from a device + UI to command it? → Pattern 2. One long-running script per device.
-- User wants live-tunable control loop? → Pattern 3. Keep UI params in a separate `*/update` topic, apply via `try_receive_message`.
-- User wants an automated pass/fail test? → Pattern 4. `TestWorkflow` with `test_*` methods and a `controls: test_workflow` element.
-- User wants the no-code Command Builder? → Pattern 5. `@Command` + `@handle_command` + `client.register_and_wait_for_commands()`.
+- User wants live readings from a device + UI to command it? → Pattern 2. One long-running script per device, exposing typed commands.
+- User wants live-tunable control loop? → Pattern 3. Control loop on a daemon thread, tunables applied by a command handler under a lock.
+- User wants an automated pass/fail test? → Pattern 4. `TestWorkflow` with `test_*` methods and a `controls: test_workflow` element. For a procedure with no pass/fail, use `AutoSequenceWorkflow` with `step_*` methods.
+- User wants the no-code Command Builder? → Pattern 5. Focus on the command schema; `command_id` in YAML is the snake_case of the class name.
 
 ## Resources
 

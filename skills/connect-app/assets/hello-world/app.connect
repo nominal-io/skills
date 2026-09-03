@@ -22,12 +22,12 @@ tiles:
             direction: vertical
             should_fill: true
             elements:
-            - display: markdown
-              path: README.md
-            - display: separator
             - id: null
               spacing: normal
               inputs:
+              - display: markdown
+                path: README.md
+              - display: separator
               - input: text
                 id: user_name
                 label: Name
@@ -41,8 +41,8 @@ tiles:
                 show_sigil: true
                 size: normal
                 rounding: tight
-            - display: banner
-              value_id: hello_output
+              - display: banner
+                value_id: hello_output
         - width: 0.6
           tile:
             layout: pane
@@ -58,7 +58,7 @@ tiles:
               show_legend: true
               legend_placement: bottom_left
               x_format: timestamp
-              x_time_display: Local
+              x_time_display: local
               x_scale: linear
               y_scale: linear
               time_window: 30s
