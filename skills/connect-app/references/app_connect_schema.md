@@ -42,13 +42,20 @@ Only `title` and `tiles` are required. Omit fields you aren't using.
 
 `left_panel`, `right_panel`, and `bottom_panel` are deprecated — do not use them in new apps.
 
-## UI Builder compatibility
+## UI Builder compatibility (required)
 
-For an app to remain editable in Connect's no-code UI builder, follow these constraints:
+Every app **must** stay editable in Connect's no-code UI builder. Users expect to open any
+app and rearrange it by hand; an app that only Connect can render but nobody can edit is a
+defect, not a stylistic choice. These constraints are not optional:
 
-- The top-level `tiles` must be a single `layout: tabs` tile.
-- Each pane contains at least one element.
-- Panes set `should_fill: true`.
+- The top-level `tiles` **must** be a single `layout: tabs` tile.
+- Every pane **must** contain at least one element.
+- Every pane **must** set `should_fill: true`.
+
+Violating any of these silently drops the app out of the UI builder. If a layout you want
+seems to require breaking one of them, restructure the layout — nest another `layout: grid`
+inside a tab rather than hoisting a grid to the top level, and give an otherwise-empty pane a
+`display: header` or `display: markdown` element instead of leaving it bare.
 
 ## Layouts
 

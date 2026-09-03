@@ -40,7 +40,15 @@ When working inside the Nominal `connect` repository, the apps under `test_apps/
 
 ### Step 3. Write `app.connect`
 
-The grammar is large. **Read [`references/app_connect_schema.md`](references/app_connect_schema.md)** to get the full element catalog (tiles, grids, panes, inputs, displays, plots, actions). Key invariants:
+The grammar is large. **Read [`references/app_connect_schema.md`](references/app_connect_schema.md)** to get the full element catalog (tiles, grids, panes, inputs, displays, plots, actions).
+
+**Every app must remain editable in Connect's no-code UI builder.** This is a hard requirement, not a preference — users rearrange apps by hand, and an app that has dropped out of the UI builder cannot be fixed without hand-editing YAML. Three constraints enforce it:
+
+- The top-level `tiles` **must** be a single `layout: tabs` tile. Nest grids inside a tab; never hoist one to the top level.
+- Every pane **must** contain at least one element. Give a spacer pane a `display: header` or `display: markdown` rather than leaving it bare.
+- Every pane **must** set `should_fill: true`.
+
+Other invariants:
 
 - Every `pane` needs a unique UUIDv4 `id`. Generate one per pane at authoring time — `uuidgen | tr '[:upper:]' '[:lower:]'` (macOS/Linux) or `python -c "import uuid; print(uuid.uuid4())"` — and paste the result directly into the YAML. Never hardcode placeholder strings like `00000000-...` or reuse IDs across panes; duplicates cause egui ID collisions.
 - Widget `id`s (the `id:` on inputs and buttons) are the keys scripts use with `client.get_value(id)`. Use `snake_case`; must be unique across the app.
@@ -68,11 +76,12 @@ Conventions:
 
 Before handing back:
 
-1. Every widget `id` referenced in `client.get_value`/`get_values` has a matching `input:` entry in `app.connect`.
-2. Every `stream_id` used in `client.stream` appears in at least one plot, `display: stream_value`, or `streaming.persistence[].streams[]`.
-3. Every message-bus topic published from `_kind: message` is subscribed to by a script (and vice versa).
-4. All pane `id`s are UUIDv4s and unique.
-5. Shutdown callbacks registered for anything that opens a hardware/network handle.
+1. **UI builder compatibility holds**: top-level `tiles` is a single `layout: tabs`, every pane has `should_fill: true`, and no pane is empty. Check this first — it is the easiest thing to break and the most disruptive to the user.
+2. Every widget `id` referenced in `client.get_value`/`get_values` has a matching `input:` entry in `app.connect`.
+3. Every `stream_id` used in `client.stream` appears in at least one plot, `display: stream_value`, or `streaming.persistence[].streams[]`.
+4. Every message-bus topic published from `_kind: message` is subscribed to by a script (and vice versa).
+5. All pane `id`s are UUIDv4s and unique.
+6. Shutdown callbacks registered for anything that opens a hardware/network handle.
 
 Do not attempt to run the app — it requires the Connect GUI on the user's machine and often physical hardware. Tell the user how to test manually (e.g. "open the directory in Connect, click Run on `my_script.py`, verify the plot populates").
 
