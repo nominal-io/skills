@@ -7,6 +7,7 @@ Nominal's [agent skills](https://agentskills.io/specification): packaged instruc
 | Skill | What it does | Invoke | Instructions |
 | --- | --- | --- | --- |
 | `nominal-ingest` | Plans and executes ingestion of a folder of test or campaign data into Nominal. | `/nominal-ingest` | [`SKILL.md`](skills/nominal-ingest/SKILL.md) |
+| `connect-app` | Scaffolds a Nominal Connect app (`app.connect` UI + Python scripts) from a description of its UI and behavior. | `/connect-app` | [`SKILL.md`](skills/connect-app/SKILL.md) |
 
 ## Install
 
@@ -37,7 +38,7 @@ codex plugin marketplace add nominal-io/skills
 ```
 
 Then install `nominal-skills` from the `nominal` marketplace in Codex. The
-plugin includes the `nominal-ingest` skill.
+plugin includes the `nominal-ingest` and `connect-app` skills.
 
 Alternatively, install the skill directly with the skills CLI:
 
