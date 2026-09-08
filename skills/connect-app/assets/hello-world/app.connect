@@ -1,0 +1,66 @@
+title: Hello World
+window_title: null
+logo_path: null
+
+python:
+  packages: []
+
+tiles:
+- layout: tabs
+  tabs:
+  - title: Main
+    allow_popout: true
+    tile:
+      layout: grid
+      rows:
+      - height: null
+        columns:
+        - width: 0.4
+          tile:
+            layout: pane
+            id: 7a13aace-e94a-4552-a461-39c728a54f02
+            direction: vertical
+            should_fill: true
+            elements:
+            - id: null
+              spacing: normal
+              inputs:
+              - display: markdown
+                path: README.md
+              - display: separator
+              - input: text
+                id: user_name
+                label: Name
+                default: World
+              - text: Say Hello
+                on_click_action:
+                  _kind: script
+                  path: hello.py
+                  args: []
+                  max_log_lines: 1000
+                show_sigil: true
+                size: normal
+                rounding: tight
+              - display: banner
+                value_id: hello_output
+        - width: 0.6
+          tile:
+            layout: pane
+            id: 33299671-3d5a-49ec-998e-529976275f40
+            title: Signal
+            direction: vertical
+            should_fill: true
+            elements:
+            - plot: line
+              stream_id: signal
+              channels:
+              - value
+              show_legend: true
+              legend_placement: bottom_left
+              x_format: timestamp
+              x_time_display: local
+              x_scale: linear
+              y_scale: linear
+              time_window: 30s
+
+scene: {}
