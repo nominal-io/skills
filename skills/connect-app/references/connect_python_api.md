@@ -320,45 +320,6 @@ Outside a Connect app the workflow entrypoint takes one of `--discover-tests`, `
 
 For a test suite with no Connect UI attached, `connect_python.TestCase` plus `connect_python.run_test_case_class(MyTests, fail_fast=False)` runs the same definition-ordered `test_` methods and returns the `TestRecord` list directly.
 
-## `AutoSequenceWorkflow`
-
-Same lifecycle as `TestWorkflow`, with steps prefixed `step_` instead of `test_`. It sets `fail_fast = True` and `allow_individual_rerun = False`, so the sequence stops at the first failure and steps cannot be rerun individually.
-
-```python
-class CalibrationSequence(connect_python.AutoSequenceWorkflow):
-    def start_workflow(self, client):
-        self.target_temp = float(client.get_value("target_temp"))
-
-    def step_preheat(self):
-        self.addComment(f"Preheating to {self.target_temp}C")
-
-    def step_stabilize(self):
-        self.assertAlmostEqual(self.client.get_value("temperature"), self.target_temp, delta=1.0)
-```
-
-## `RemoteAutoSequenceWorkflow`
-
-An `AutoSequenceWorkflow` that sends output commands to a Connect Realtime driver on another machine over ZMQ.
-
-```python
-from connect_python.output_commands import SequenceCommand, ConstantParams
-
-class RemoteCalibration(connect_python.RemoteAutoSequenceWorkflow):
-    command_host = "192.168.1.100"   # default "localhost"
-    rcvtimeo_ms = 2500               # command socket receive timeout
-    default_driver = "ni_daq"
-    default_task = "ao_task"
-    default_channel = "ao0"
-
-    def step_set_voltage(self):
-        self.send_command(SequenceCommand(output=ConstantParams(value=5.0)))
-        self.wait_for(0.5)
-```
-
-- `self.send_command(command, *, driver=None, task=None, channel=None)` sends one `SequenceCommand`; driver/task/channel resolve from the command, then the keyword override, then the class defaults.
-- `self.send_commands(commands, *, driver=None, task=None, channel=None)` batches several into one request. They must all resolve to the same driver.
-- `self.wait_for(seconds)` sleeps between steps.
-
 ## StubClient
 
 When a script runs outside Connect (e.g., `python my_script.py` in a terminal), `@connect_python.main` returns a `StubClient` instead of a real `Client`. Detection key: the `NOMINAL_CONNECT_ENVIRONMENT` env var is set only when Connect spawns the script. Streaming, messaging, and command calls are no-ops; `get_value`/`set_value`/`clear_values` work against an in-memory dict; request-response calls (`show_prompt_window`, `get_channel_values`, `get_stream_channels`) return `None`. Useful for unit tests or quick local iteration.
