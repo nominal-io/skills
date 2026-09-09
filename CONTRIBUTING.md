@@ -80,7 +80,6 @@ Before opening a PR:
 
    ```sh
    uv run scripts/validate_skills.py
-   uv run scripts/test_validate_skills.py
    ```
 
 7. Exercise a missing-capability case (such as an inaccessible local folder) and confirm

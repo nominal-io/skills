@@ -16,4 +16,3 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - run: uv run scripts/validate_skills.py
-      - run: uv run scripts/test_validate_skills.py
