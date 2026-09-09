@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nominal Connect Apps"
+  short_description: "Build Nominal Connect interfaces and scripts"
+  default_prompt: "Use $connect-app to design and build a Nominal Connect app."

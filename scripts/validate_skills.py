@@ -14,19 +14,19 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 errors: list[str] = []
 
-# Sections and keys from https://learn.chatgpt.com/docs/build-skills. Values inside
-# `dependencies.tools` are a list of tool entries and are not checked here.
+# Supported metadata fields from https://learn.chatgpt.com/docs/build-skills.
+# Validate field types; individual dependency tool entries are not checked here.
 OPENAI_METADATA_KEYS = {
     "interface": {
-        "display_name",
-        "short_description",
-        "icon_small",
-        "icon_large",
-        "brand_color",
-        "default_prompt",
+        "display_name": str,
+        "short_description": str,
+        "icon_small": str,
+        "icon_large": str,
+        "brand_color": str,
+        "default_prompt": str,
     },
-    "policy": {"allow_implicit_invocation"},
-    "dependencies": {"tools"},
+    "policy": {"allow_implicit_invocation": bool},
+    "dependencies": {"tools": list},
 }
 
 for directory in sorted((ROOT / "skills").iterdir()):
@@ -53,7 +53,7 @@ for directory in sorted((ROOT / "skills").iterdir()):
     if not isinstance(frontmatter.get("description"), str) or not frontmatter["description"].strip():
         errors.append(f"ERROR {path.relative_to(ROOT)}: frontmatter description must be a non-empty string")
 
-    # Optional per-host metadata: agents/openai.yaml in the agent-skills spec.
+    # Optional OpenAI-specific metadata; other hosts can omit it.
     metadata_path = directory / "agents" / "openai.yaml"
     if metadata_path.is_file():
         try:
@@ -71,10 +71,16 @@ for directory in sorted((ROOT / "skills").iterdir()):
             if not isinstance(value, dict):
                 errors.append(f"ERROR {metadata_path.relative_to(ROOT)}: `{section}` must be a mapping")
                 continue
-            unknown = sorted(set(value) - allowed)
+            unknown = sorted(set(value) - set(allowed), key=str)
             if unknown:
                 errors.append(f"ERROR {metadata_path.relative_to(ROOT)}: unknown `{section}` keys {unknown}")
-        unknown_sections = sorted(set(metadata) - set(OPENAI_METADATA_KEYS))
+            for key, expected_type in allowed.items():
+                if key in value and not isinstance(value[key], expected_type):
+                    type_name = "string" if expected_type is str else expected_type.__name__
+                    errors.append(
+                        f"ERROR {metadata_path.relative_to(ROOT)}: `{section}.{key}` must be a {type_name}"
+                    )
+        unknown_sections = sorted(set(metadata) - set(OPENAI_METADATA_KEYS), key=str)
         if unknown_sections:
             errors.append(f"ERROR {metadata_path.relative_to(ROOT)}: unknown top-level keys {unknown_sections}")
 for path in (

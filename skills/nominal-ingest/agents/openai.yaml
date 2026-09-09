@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nominal Ingest"
+  short_description: "Plan and ingest test data into Nominal"
+  default_prompt: "Use $nominal-ingest to plan ingestion of my test data into Nominal."
