@@ -1,4 +1,4 @@
-# Running extractors and debugging ingest jobs
+# Running extractors and debugging jobs
 
 ## Triggering an ingest
 
@@ -13,27 +13,30 @@ job = dataset.add_containerized(
 )
 ```
 
-- **`sources`** — maps each input's *environment variable*, as registered on the active
-  image, to a local file path. The SDK uploads each file, then triggers the ingest. Keys must
-  match the active image's registered inputs, and a missing `required` input raises before
-  anything uploads. The extractor must have an active image.
-- **`arguments`** — parameter values, keyed by the parameter's environment variable. Values
-  are strings, which is how they arrive in the container.
-- **`tags`** — applied to all data from this run, and exposed to the container as
-  `ctx.additional_tags`. Use tags to partition recurring uploads within one dataset (per run,
-  per vehicle) instead of creating a dataset per file.
-- **`timestamp_column=` / `timestamp_type=`** (together) — override the image's default
-  timestamp metadata for this ingest, applied to all output files. Per-output metadata
-  declared in a manifest still wins over this override.
+- **`sources`** — each input's *environment variable*, as registered on the active image,
+  mapped to a local file path. The SDK uploads the files, then triggers the ingest. Keys must
+  match the active image's inputs (`extractor.active_image.inputs` is the live list), a
+  missing `required` input raises before anything uploads, and the extractor must have an
+  active image.
+- **`arguments`** — parameter values, keyed by environment variable, as strings.
+- **`tags`** — applied to all data from this run and readable in-container as
+  `ctx.additional_tags`. Use tags to partition recurring uploads within one dataset instead of
+  creating a dataset per file.
+- **`timestamp_column` / `timestamp_type`** (together) — override the image's default for
+  this ingest, applied uniformly to every output file. Per-output manifest metadata still
+  wins over it.
 
-Containerized ingest is asynchronous and can emit many files, so the call returns an
-`IngestionJob` immediately.
+`DataScope.add_containerized(data_scope_name, extractor, sources, ...)` is the same call
+against a scope, merging the scope's required tags into `tags` (yours win on collisions).
+
+There is no CLI path for triggering a containerized ingest — the SDK or the web app. This is
+the one lifecycle step `nom container` does not cover.
 
 ## Tracking the job
 
-Waiting has **two stages**, and conflating them is the most common mistake here. The
-container has to finish producing files; only then do those files exist to be waited on, and
-they ingest asynchronously in turn.
+Containerized ingest is asynchronous and can emit many files, so the call returns an
+`IngestionJob` immediately, and waiting has **two stages**: the container has to finish
+producing files, and only then do those files exist to be waited on as they ingest.
 
 ```python
 import time
@@ -52,24 +55,23 @@ if job.status is not IngestionJobStatus.COMPLETED:
     raise RuntimeError(f"extraction {job.status.name} — see {job.nominal_url}")
 
 # 2. the files it produced
-done, still_ingesting = wait_for_files_to_ingest(job.dataset_files())  # timeout=, return_when= available
+done, still_ingesting = wait_for_files_to_ingest(job.dataset_files())  # timeout=, return_when=
 ```
 
-**Why stage 1 can't be skipped.** `job.dataset_files()` returns the files that exist *when it
-is called*, and `job.as_files_ingested()` calls it exactly once. Run either right after
-`add_containerized` and it sees an empty list, so `list(job.as_files_ingested())` returns
-`[]` immediately, having waited for nothing. It looks like a successful wait over zero
-outputs. Once the job is `COMPLETED` the file list is complete, and `as_files_ingested()`
-works fine for stage 2.
+Two details that look like style but aren't:
 
-**Why the loop tests the running set, not a terminal set.** `IngestionJobStatus` has a
-seventh member, `UNKNOWN`, which this client maps any status a newer server adds into.
-Waiting *while* the status is known-running exits on anything unrecognized, and the
-`COMPLETED` check turns that into a loud failure. Waiting *until* the status is one of a
-fixed terminal set does the opposite: an unrecognized status is never terminal, so a client a
-release behind its server spins forever — the same class of bug as the snapshot above. The
-deadline covers the remaining case, a server that adds a non-terminal status. Pick a bound
-that suits your extractor's real runtime.
+**Stage 1 can't be skipped.** `job.dataset_files()` returns the files that exist *when it is
+called*, and `job.as_files_ingested()` calls it exactly once. Run either right after
+`add_containerized` and it sees an empty list, so `list(job.as_files_ingested())` returns `[]`
+immediately, having waited for nothing — indistinguishable from a successful wait over zero
+outputs. Once the job is `COMPLETED` the file list is complete and `as_files_ingested()` is
+fine for stage 2.
+
+**The loop tests the running set, not a terminal set.** `IngestionJobStatus` maps any status
+a newer server adds into `UNKNOWN`. Waiting *while* the status is known-running exits on
+anything unrecognized and the `COMPLETED` check makes that loud; waiting *until* the status
+is in a fixed terminal set spins forever instead, since `UNKNOWN` is never terminal. The
+deadline covers a server that adds a new non-terminal status.
 
 The rest of the handle:
 
@@ -79,64 +81,68 @@ job.status          # SUBMITTED → QUEUED → IN_PROGRESS → COMPLETED | FAILE
 job.dataset_files() # the DatasetFiles produced as of this call
 job.produced_file_count
 job.cancel()        # stop a job that is still running
-job.nominal_url     # link to the job's page in the Nominal app
+job.nominal_url     # the job's page in the Nominal app
 ```
 
 ## Debugging a failed job
 
-Work from the outside in:
+Work from the outside in.
 
-1. **Open `job.nominal_url`** — the job page in the Nominal app shows status, produced
-   files, and the container's captured stdout/stderr. The extractor runtime logs its
-   startup line (mode, function name, input count), contract warnings, and the final
-   traceback there.
-2. **Read the runtime's advisory warnings** near the top of the log:
-   - "required parameter ... has no value set" — the ingest request omitted an argument
-     the image registered as required.
-   - "input ... is not present at ..." — a registered input wasn't mounted (usually an
-     optional input the request didn't supply).
-   - "output directory contains file(s) not passed to ..." (at the end) — the code wrote
-     files it never declared; they were not ingested.
-3. **Common failure signatures**:
-   - `@manifest_extractor disagrees with the image's registered output format ...` — the code
-     and the registration disagree. Re-register or switch decorators.
-   - `exec format error`, or the container exits instantly with no Python traceback — wrong
-     architecture. Rebuild with `--platform linux/amd64`.
-   - `ModuleNotFoundError` — a dependency is missing from the image. Install it in the
-     Dockerfile; nothing carries over from your dev machine.
-   - Ingestion fails before the container ran, complaining about timestamp metadata — the
-     image was registered without a default (an older registration path) and the request
-     supplied no override.
-4. **Job `COMPLETED` but no data visible.** Start from what `COMPLETED` proves: the container
-   exited 0, so the runtime finalized *at least one* declared output. A run that declared
-   nothing cannot land here — `_finalize` raises and the job shows `FAILED`. That leaves:
-   - the code declared some file, but not the one carrying the data. The stray-file warning
-     names it;
-   - the declared file is empty because a broad `except` swallowed a parse failure;
-   - the timestamp column or unit is wrong, so the data landed at a time nobody is looking at;
-   - tags or a channel prefix are filtering it out of view;
-   - the file is still ingesting. Job status and each file's `ingest_status` are separate, so
-     check `job.dataset_files()` before concluding the data is missing.
+**1. Open `job.nominal_url`.** The job page shows status, produced files, and the container's
+captured stdout/stderr: the runtime's startup line (mode, function name, input count), its
+contract warnings, and the final traceback. The capture lands in a log dataset in the
+workspace and is **capped at 1 MiB per job**, so a verbose extractor can lose its own
+traceback off the end — if the log looks truncated mid-run, that's the cap, not a hang.
 
-   If the entrypoint is hand-rolled rather than using this runtime, none of the declaration
-   guarantees hold. Check that first.
-5. **Reproduce locally.** The same code path runs under
-   `my_extractor.run(env={...}, exit=False)` (see `authoring.md`, Local testing), or under
-   Docker with the input mounted. This is almost always faster than iterating through
-   platform ingests.
+**2. Read the runtime's advisory warnings** near the top of the log:
 
-## Fitting into recurring workflows
+- *"required parameter ... has no value set"* — the request omitted an argument the image
+  registered as required.
+- *"input ... is not present at ..."* — a registered input wasn't mounted, usually an optional
+  one the request didn't supply.
+- *"output directory contains file(s) not passed to ..."* (at the end) — the code wrote files
+  it never declared, and they were not ingested.
 
-Once the extractor is registered, ingest triggering is the only per-file step. Typical
-patterns:
+**3. Match the signature:**
 
-- **Scripted batch**: loop `add_containerized` over every file and collect the jobs *before*
-  waiting on any of them. They run server-side and in parallel, so waiting inside the loop
-  serializes work that need not be. Then apply the two-stage wait per job: poll each to a
-  terminal status, then `wait_for_files_to_ingest` over the files it produced. A batch is
-  where skipping stage 1 hurts most, since an empty snapshot per job makes the whole batch
-  look instantly finished.
-- **Operator self-serve**: users upload raw files through the web app and pick the extractor,
-  with no SDK involved. This is the main reason to prefer an extractor over local conversion.
-- **Version upgrades**: register the new image tag and `set_active_image` — in-flight jobs
-  finish on the image they started with; new ingests use the new image.
+- *"`@manifest_extractor` disagrees with the image's registered output format"* — code and
+  registration disagree; re-register or switch decorators.
+- *exec format error*, or the container exits instantly with no Python traceback — wrong
+  architecture. Rebuild with `--platform linux/amd64`.
+- *`ModuleNotFoundError`* — a dependency is missing from the image. Nothing carries over from
+  your dev machine.
+- *ingestion fails before the container ran, complaining about timestamp metadata* — the image
+  was registered without a default (an older registration path) and the request supplied no
+  override.
+
+**4. `COMPLETED` but no data visible.** Start from what `COMPLETED` proves: the container
+exited 0, so the runtime finalized at least one declared output. A run that declared nothing
+cannot land here — `_finalize` raises and the job shows `FAILED`. That leaves:
+
+- the code declared some file, but not the one carrying the data — the stray-file warning
+  names it;
+- the declared file is empty because a broad `except` swallowed a parse failure;
+- the timestamp column or unit is wrong, so the data landed at a time nobody is looking at;
+- tags or a channel prefix are filtering it out of view;
+- the file is still ingesting — job status and each file's `ingest_status` are separate, so
+  check `job.dataset_files()` before concluding data is missing.
+
+If the entrypoint is hand-rolled rather than using this runtime, none of the declaration
+guarantees hold. Check that first.
+
+**5. Reproduce locally.** The same code path runs under `extractor.run(env={...}, exit=False)`
+or under `docker run` with the input mounted (see `authoring.md`), which is almost always
+faster than iterating through platform ingests.
+
+## Recurring workflows
+
+Once the image is registered, triggering is the only per-file step.
+
+- **Scripted batch** — collect the jobs from the whole loop *before* waiting on any of them;
+  they run server-side in parallel, so waiting inside the loop serializes work that needn't
+  be. Then apply the two-stage wait per job. A batch is where skipping stage 1 hurts most: an
+  empty snapshot per job makes the whole batch look instantly finished.
+- **Operator self-serve** — users upload through the web app and pick the extractor, no SDK
+  involved. This is the main reason to prefer an extractor over local conversion.
+- **Version upgrades** — register the new tag and `set_active_image`; in-flight jobs finish on
+  the image they started with.

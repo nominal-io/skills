@@ -1,84 +1,92 @@
 # Modeling decisions
 
-The mechanics of writing an extractor are in `authoring.md`. This file covers the choices
-that decide whether the resulting data is pleasant or painful to work with. They are cheap
-now and expensive later: inputs and parameters are fixed at registration, and timestamps and
-tags shape how every downstream query has to be written.
+The mechanics are in `authoring.md`. These are the choices that decide whether the resulting
+data is pleasant or painful to work with, and they are cheap now and expensive later: inputs
+and parameters are fixed at registration, and timestamps and tags shape how every downstream
+query has to be written.
 
-## Inputs vs parameters
+## Inputs vs. parameters
 
 Both arrive through the environment. The distinction is *kind*, not size:
 
 - **Input** — a file the extractor reads. Nominal mounts it and puts its path in the declared
-  environment variable. The ingest request supplies it as `sources={"ENV_VAR": path}`.
-- **Parameter** — a scalar that tunes behavior, delivered as an environment-variable string.
-  The ingest request supplies it as `arguments={"ENV_VAR": "value"}`.
+  environment variable. Ingest requests supply it as `sources={"ENV_VAR": path}`.
+- **Parameter** — a scalar knob, delivered as an environment-variable string. Ingest requests
+  supply it as `arguments={"ENV_VAR": "value"}`.
 
 Decide with two questions.
 
-*Is it content, or a knob?* A calibration table, a channel map, a vendor schema sidecar is
-content: make it an input, even though it feels like configuration. A sample-rate divisor, a
-mode flag, a quality threshold is a knob: make it a parameter.
+*Content or knob?* A calibration table, a channel map, a vendor schema sidecar is content:
+make it an input, even though it feels like configuration. A sample-rate divisor, a mode
+flag, a quality threshold is a knob: make it a parameter.
 
 *Does it vary per ingest?* If it never varies, put it in the image — in the code or a
 `COPY`'d file — rather than either mechanism. Every registered parameter is a field somebody
 has to understand and fill in.
 
-Two things push structured configuration toward inputs:
-
-- Parameter values are strings with no schema. A mapping, a list, or a nested document has to
-  be encoded and parsed by hand, and a malformed value fails inside your parsing code with
-  whatever message you wrote.
-- Inputs declare accepted suffixes (`file_suffixes=["json"]`), which is what
-  `search_containerized_extractors(file_extension=...)` matches on, so they determine which
-  extractors a given file is offered for. Inputs also get a real client-side required check.
-  The suffixes are descriptive, not enforced locally: a `.txt` sent to an input registered
-  `["json"]` still uploads.
+Two things push structured configuration toward inputs. Parameter values are strings with no
+schema, so a mapping or a nested document has to be encoded and parsed by hand, and a
+malformed one fails inside your parsing code. And inputs declare accepted suffixes
+(`file_suffixes=["json"]`), which is what `search_containerized_extractors(file_extension=...)`
+matches on — so inputs determine which extractors a file is offered for. The suffixes are
+descriptive, not enforced: a `.txt` sent to an input registered `["json"]` still uploads.
 
 **`required=True` is much stronger on an input than on a parameter.** A missing required
 input raises in `add_containerized` before anything uploads. A missing required parameter is
-not checked client-side: the runtime warns at container start, and the run fails whenever
-`ctx.param()` reads it — after the upload, after the container started, mid-job. So for a
-parameter the code cannot run without, either read it at the top of the function or give it a
-default with `ctx.get_param(name, default)` and drop the required flag.
+not checked client-side at all: the runtime warns at container start, then the run fails
+whenever `ctx.param()` reads it — after the upload, mid-job. So for a parameter the code
+cannot run without, either read it at the top of the function or give it a default with
+`ctx.get_param(name, default)` and drop the required flag.
 
 Name the environment variables carefully. `name` is what a person sees in the app;
 `environment_variable` is what the code reads. Changing it later means a new registration
 plus an update to every caller's `sources` or `arguments`.
 
-## Absolute vs relative time
+## Absolute vs. relative time
 
-Nominal places every sample on an absolute timeline. The only question is how your output
-encodes the position:
+Nominal places every sample on an absolute timeline. The question is only how your output
+encodes its position:
 
-| Type | Encodes | Use when |
+| Type | Encodes | Where it can be declared |
 |---|---|---|
-| `ts.Epoch(unit=...)` / `"epoch_nanoseconds"` etc. | numeric offset from the Unix epoch | the source records absolute time — the default choice |
-| `ts.Relative(unit=..., start=...)` | numeric offset from an absolute `start` | the source records only elapsed time, and you can establish t0 |
-| `ts.Iso8601` | absolute timestamp strings | the source carries formatted timestamps you don't want to parse |
-| `ts.Custom(format=...)` | absolute strings in a `DateTimeFormatter` pattern | the same, in a non-ISO layout |
+| `ts.Relative(unit=..., start=...)` | numeric offset from an absolute `start` | per output, or per ingest |
+| `ts.Epoch(unit=...)` / `"epoch_nanoseconds"` etc. | numeric offset from the Unix epoch | per output, per ingest, or the image default |
+| `ts.Iso8601` | absolute timestamp strings | per ingest, or the image default |
+| `ts.Custom(format=...)` | absolute strings in a `DateTimeFormatter` pattern | per ingest, or the image default |
 
-**Prefer absolute.** If the source has absolute time anywhere, per record or as a header
-start plus offsets you can add, convert it in the extractor and emit `Epoch`. Absolute
-output is self-describing: it survives re-registration, does not depend on metadata staying
-paired with the file, and cannot be silently wrong.
+**Default to relative, and treat absolute as a claim you can back.** With relative
+timestamps, absolute time is `(elapsed in the file) + (t0 in metadata)`, so a wrong t0 is a
+metadata error: delete the file and re-ingest the same bytes with a corrected `start`. With
+absolute timestamps the times *are* the data, so the only fix is to download the file,
+rewrite every value, and upload it again. Relative also asks less of the source — how far
+into the recording is this sample, which the logger measures off its own clock — where
+absolute asks every sample to be right in wall-clock time, which depends on GPS lock, NTP
+sync, and drift.
 
-Use `Relative` when the logger knows nothing but elapsed time. Then t0 has to come from
-somewhere, and that choice matters: a header inside the file, the filename, a registered
-parameter, or `ctx.additional_tags`. Prefer the file, which keeps it self-contained. A t0
-passed as a parameter is a value someone has to get right on every upload.
+So:
 
-**Do not register `Relative` as an image's `default_timestamp_type`.** A default is set once
-and applies to every future ingest, so a fixed `start` would give every file the same t0 —
-right for the first, wrong for the rest. Register an absolute default and declare `Relative`
-per output in the manifest, where each file carries its own start. This is one concrete
-reason to prefer manifest extractors: single-file mode has nowhere to put per-file timestamp
-metadata.
+- the source records only elapsed time → emit relative, with a t0 you can establish;
+- the source records absolute time you *cannot* vouch for (unsynced machines, intermittent
+  GPS, timestamps rounded to the second, occasional jumps) → convert to elapsed-from-first-
+  sample and emit relative with a best-estimate t0;
+- the source records absolute time you can vouch for → emit `Epoch` (or pass the strings
+  through as `Iso8601`/`Custom` via job-level metadata). Nothing is left for an uploader to
+  supply, which is the payoff.
 
-Use the unit the data actually has, not a rounder one. Declaring `epoch_milliseconds` for
-microsecond data does not just lose precision, it misplaces every sample by a factor of 1000.
-Per-output metadata accepts numeric types only, seconds through nanoseconds; an output needing
-ISO 8601 or a custom format must omit the per-output pair and inherit the job-level metadata.
+Where t0 comes from matters as much as the choice. Prefer a header inside the file, which
+keeps it self-contained; then the filename; then the ingest request. A t0 passed as a
+parameter is a value someone has to get right on every upload.
+
+**Never register `Relative` as an image's `default_timestamp_type`.** A default is set once
+and applies to every future ingest, so a fixed `start` gives every file the same t0 — right
+for the first, wrong for the rest. Register an absolute default as the fallback and supply
+`Relative` per output in the manifest (each file carrying its own start) or per ingest on
+`add_containerized`.
+
+Use the unit the data actually has. Declaring `epoch_milliseconds` for microsecond data does
+not merely lose precision, it misplaces every sample by a factor of 1000. Per-output metadata
+accepts numeric types only, seconds through nanoseconds; an output needing ISO 8601 or a
+custom format must omit the per-output pair and inherit the job-level metadata.
 
 ## Tags
 
@@ -87,30 +95,27 @@ stands both producing `chamber_pressure` collide into one series unless a tag di
 them. Get this wrong and the data is not lost, it is blended — harder to notice and harder to
 undo than a failed ingest.
 
-Tags come from three places, in increasing order of specificity:
+Tags reach the data three ways, in increasing specificity:
 
-1. **The ingest request** — `dataset.add_containerized(..., tags={"vehicle": "n1234"})`.
-   Applied to everything the run produces, and readable in-container as
-   `ctx.additional_tags`. Use it for facts about *this upload* that the file does not know:
-   which vehicle, which campaign, which operator.
-2. **A tag column** — `ctx.add_tabular(path, tag_columns={"motor": "motor_id"})`. Reads the
-   value per row, so one file can carry data from several sources. Use it when the
-   distinguishing fact varies *within* the file.
-3. **Avro records**, which carry tags inline. Hence no tag columns on `add_avro_stream`:
-   there would be nothing to map.
+1. **The ingest request** — `add_containerized(..., tags={"vehicle": "n1234"})`. Applied to
+   everything the run produces, and readable in-container as `ctx.additional_tags`. Use it for
+   facts about *this upload* that the file doesn't carry: which vehicle, campaign, operator.
+2. **A tag column** — `ctx.add_tabular(path, tag_columns={"motor": "motor_id"})`. Read per
+   row, so one file can carry data from several sources. Use it when the distinguishing fact
+   varies *within* the file.
+3. **Avro records**, which carry tags inline — hence no tag columns on `add_avro_stream`.
 
-Log outputs (`add_journal_json`) and videos (`add_video`) take neither. Log samples carry no
-tags and land on a single channel, and a video is identified by its `channel`.
+Log outputs (`add_journal_json`) and videos (`add_video`) take neither: log samples carry no
+tags and land on one channel, and a video is identified by its `channel`.
 
 **A tag column is consumed, not ingested.** Naming a column in `tag_columns` applies its
 values as tags to that file's rows; the column does not also become a channel. Each column is
-either a measurement you can plot or a dimension you can filter by, never both. Write it out
-twice, under two names, if you need both. So tagging is an authoring-time decision: per
-column, you choose which of the two it becomes.
+either a measurement you can plot or a dimension you can filter by, never both — write it out
+twice, under two names, if you need both.
 
 A good tag *identifies a source*, stays stable for the life of the data, and has few distinct
 values: vehicle, stand, motor serial, run identifier, sensor location. A bad tag is a
-measurement (that is a channel), a timestamp or anything derived from one (that is the
+measurement (that's a channel), a timestamp or anything derived from one (that's the
 timeline), a value that changes constantly (it fragments the series into noise), or free text
 that varies by upload — `Stand A`, `stand-a`, and `standA` become three unrelated series.
 
@@ -122,9 +127,9 @@ Two things to settle before the first real ingest:
   rather than trusting each uploader.
 - **Choose between a tag and a channel prefix deliberately.** `channel_prefix` renames
   channels (`engine/chamber_pressure`); a tag leaves the name alone and adds a dimension. A
-  prefix suits two outputs that would collide by name and should look distinct. A tag suits
-  comparing the same measurement across sources, since a tag can be filtered and grouped
-  while a prefix has to be matched as a string.
+  prefix suits two outputs that would collide by name and should read as distinct. A tag suits
+  comparing the same measurement across sources, since tags can be filtered and grouped while
+  a prefix has to be matched as a string.
 
-Both are painful to change once there is data: tag values are baked into every series
-already ingested, so a renamed key or a re-spelled value doesn't migrate — it forks.
+Both are painful to change once data exists: tag values are baked into every series already
+ingested, so a renamed key or a re-spelled value doesn't migrate — it forks.
