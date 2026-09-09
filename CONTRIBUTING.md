@@ -32,6 +32,32 @@ description: <what the skill does and when an agent should use it>
 - Make safety boundaries, required approvals, and destructive operations explicit.
 - Prefer portable commands and existing repository conventions.
 
+## Support multiple hosts
+
+Keep one shared workflow in `SKILL.md`. Use capability checks instead of assuming that a
+particular host has a local shell, Docker, credentials, or access to the user's computer.
+Resolve bundled references, scripts, and assets relative to the installed skill location;
+write project outputs into the chosen target directory. Explain useful fallback deliverables
+when execution is unavailable, and distinguish authored artifacts from verified results.
+
+Optional OpenAI display metadata lives in `agents/openai.yaml` inside each skill:
+
+```yaml
+interface:
+  display_name: "Example Workflow"
+  short_description: "Describe the workflow in a short UI label"
+  default_prompt: "Use $example to help me with this workflow."
+```
+
+Use the actual skill name in the default prompt. This metadata supplements the shared skill;
+other agents do not need it. Keep implicit invocation enabled unless there is a specific
+reason to require explicit selection. Declare only real MCP tools as dependencies, not
+Python, Docker, desktop applications, or account credentials. See the current
+[OpenAI metadata documentation](https://learn.chatgpt.com/docs/build-skills#optional-metadata).
+
+The validator checks supported metadata keys and field types. It does not validate individual
+dependency entries, install a plugin, or prove that a host can execute the workflow.
+
 ## Test locally
 
 Before opening a PR:
@@ -45,8 +71,8 @@ Before opening a PR:
    ```
 
 2. Start or reload your coding agent and verify that it lists the skill.
-3. Invoke it with `/<name>` (or the agent's equivalent) using a small,
-   representative request.
+3. Invoke it using the [host-specific syntax](README.md#invoke) and a small,
+   representative request. Also try a natural-language request to check discovery.
 4. Check that it follows the documented workflow, asks for required approval,
    and does not invent missing information.
 5. Review links, commands, and referenced files from a clean checkout.
@@ -55,6 +81,10 @@ Before opening a PR:
    ```sh
    uv run scripts/validate_skills.py
    ```
+
+7. Exercise a missing-capability case (such as an inaccessible local folder) and confirm
+   the agent provides useful next steps without claiming unexecuted work succeeded.
+   Record which hosts and installation routes you actually tested in the PR.
 
 ## GitHub Actions
 

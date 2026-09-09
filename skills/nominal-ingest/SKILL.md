@@ -9,6 +9,20 @@ Help a user move data from disk into Nominal. The user will point you at a folde
 
 **Always plan first, execute second.** Never create resources or ingest data before showing the user a written plan and getting approval.
 
+## Available tools and files
+
+Resolve bundled references relative to this skill's installed directory, using the host's
+skill-resource interface or provided filesystem location. Do not assume the current working
+directory contains the skill files.
+
+Before running the workflow, check whether this environment can access the source folder and
+run `nomctl`. A path on the user's machine may not exist in a cloud session. If a capability
+is missing, use supplied file listings or format details to prepare a provisional ingestion
+plan and commands for the user's machine; identify what must be inspected before execution.
+Do not invent a folder inventory or claim authentication, uploads, or resource creation
+succeeded without observing them. Existing profiles can be used without displaying secrets;
+do not ask the user to paste tokens into chat. The approval boundary above still applies.
+
 ## Concepts you must know before doing anything
 
 Read [references/data-model.md](references/data-model.md) once before your first plan. Asset, Run, Dataset, Video, Channel, Connection — these terms map to specific things in Nominal and the wrong choice produces a messy workspace that is hard to clean up.
@@ -24,7 +38,9 @@ The short version:
 
 ### 1. Verify auth
 
-Before touching the user's folder, list existing profiles and pick one:
+When `nomctl` is available, list existing profiles and pick one before executing ingestion:
+For a planning-only fallback, record authentication as unverified and continue with the
+information available.
 
 ```sh
 nomctl config profile list
@@ -62,7 +78,8 @@ nomctl --profile <NAME> user who-am-i
 
 #### Passing the profile to every `nomctl` call
 
-Each Bash tool call is a fresh shell — `export NOMINAL_PROFILE=...` in one call does _not_ persist to the next. You need the profile on every `nomctl` invocation.
+Shell state may not persist between tool calls. Pass the profile on every `nomctl`
+invocation instead of relying on an earlier `export NOMINAL_PROFILE=...`.
 
 **Preferred: env-var prefix on the same line.**
 

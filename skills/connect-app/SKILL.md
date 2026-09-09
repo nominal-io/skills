@@ -7,6 +7,19 @@ description: Scaffold a Nominal Connect app (app.connect YAML + Python scripts) 
 
 Scaffold Nominal Connect apps: a directory containing an `app.connect` YAML and supporting Python scripts that the user can open in the Connect desktop app.
 
+## Available tools and files
+
+Resolve bundled references and assets relative to this skill's installed directory, using
+the host's resource interface or provided filesystem location. Resolve output files relative
+to the user's target project; these are separate locations.
+
+Check whether the target directory and file-writing tools are available in this environment.
+If the user's local project is inaccessible, author a downloadable app directory or archive
+when supported; otherwise provide the named file contents and setup instructions. Continue
+to settle the spec before authoring. Running the app requires Nominal Connect and any target
+devices or services. Distinguish file/schema checks from a successful run in Connect, and
+state any runtime checks the user still needs to perform.
+
 ## What a Connect app is
 
 A Nominal Connect app is a directory containing:
