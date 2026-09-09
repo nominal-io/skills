@@ -2,7 +2,18 @@
 
 ## Triggering an ingest
 
+Fetch the target and live active image first. Compare its inputs, parameters, output format
+and timestamp defaults with the intended capture. Reuse settled per-capture sources,
+parameters, tag vocabulary and start-time evidence from code, README and the conversation.
+Resolve missing essentials before uploading: required files, validated parameter values,
+target dataset/scope, and a trustworthy capture start where relative time needs one. Do not
+invent a start, tag or deployment target to make the call runnable.
+
 ```python
+extractor = client.get_containerized_extractor(extractor_rid)
+active_image = extractor.active_image
+if active_image is None:
+    raise RuntimeError("Extractor has no active image")
 dataset = client.get_dataset("ri.catalog.gov-staging.dataset.abc123")
 
 job = dataset.add_containerized(
@@ -23,11 +34,14 @@ job = dataset.add_containerized(
   `ctx.additional_tags`. Use tags to partition recurring uploads within one dataset instead of
   creating a dataset per file.
 - **`timestamp_column` / `timestamp_type`** (together) — override the image's default for
-  this ingest, applied uniformly to every output file. Per-output manifest metadata still
-  wins over it.
+  this ingest. See the authoritative
+  [timestamp metadata contract](authoring.md#timestamp-metadata-contract) for precedence and
+  supported types; capture-specific starts belong with this capture, not an image default.
 
 `DataScope.add_containerized(data_scope_name, extractor, sources, ...)` is the same call
 against a scope, merging the scope's required tags into `tags` (yours win on collisions).
+That scope/upload merge says nothing about collisions with row/record tags; use distinct keys
+or verify the required behavior as described in [modeling](modeling.md#tags-start-from-intended-comparisons).
 
 There is no CLI path for triggering a containerized ingest — the SDK or the web app. This is
 the one lifecycle step `nom container` does not cover.
@@ -39,9 +53,11 @@ Containerized ingest is asynchronous and can emit many files, so the call return
 producing files, and only then do those files exist to be waited on as they ingest.
 
 ```python
+import datetime
 import time
 
 from nominal.core import IngestionJobStatus, wait_for_files_to_ingest
+from nominal.core.dataset_file import IngestStatus
 
 RUNNING = (IngestionJobStatus.SUBMITTED, IngestionJobStatus.QUEUED, IngestionJobStatus.IN_PROGRESS)
 
@@ -55,23 +71,37 @@ if job.status is not IngestionJobStatus.COMPLETED:
     raise RuntimeError(f"extraction {job.status.name} — see {job.nominal_url}")
 
 # 2. the files it produced
-done, still_ingesting = wait_for_files_to_ingest(job.dataset_files())  # timeout=, return_when=
+files = job.dataset_files()
+done, still_ingesting = wait_for_files_to_ingest(
+    files, timeout=datetime.timedelta(minutes=30)
+)
+if still_ingesting:
+    raise TimeoutError(f"{len(still_ingesting)} files still ingesting — see {job.nominal_url}")
+unsuccessful = [file for file in done if file.ingest_status is not IngestStatus.SUCCESS]
+if unsuccessful:
+    raise RuntimeError(f"{len(unsuccessful)} files did not ingest successfully — see {job.nominal_url}")
 ```
 
-Two details that look like style but aren't:
+The wait's `done` list includes failed, deleted and unknown statuses; it does not mean
+success. Require both no remaining files and SUCCESS for every returned file. Choose bounded
+timeouts suitable for the capture. Empty lists pass these checks, so also compare observed
+outputs with the representative contract: expected counts where established, tables,
+channels and destination-specific outputs. Do not universally equate manifest declarations with dataset-file count: video and
+other destinations need their own verification, and one-to-one mapping is not guaranteed.
+
+Two timing details matter:
 
 **Stage 1 can't be skipped.** `job.dataset_files()` returns the files that exist *when it is
-called*, and `job.as_files_ingested()` calls it exactly once. Run either right after
-`add_containerized` and it sees an empty list, so `list(job.as_files_ingested())` returns `[]`
-immediately, having waited for nothing — indistinguishable from a successful wait over zero
-outputs. Once the job is `COMPLETED` the file list is complete and `as_files_ingested()` is
-fine for stage 2.
+called*, and `job.as_files_ingested()` calls it exactly once. Run either before extraction finishes and it can see an empty or partial list. An empty
+snapshot makes `list(job.as_files_ingested())` return `[]` immediately, having waited for
+nothing; a partial snapshot misses later outputs. After `COMPLETED`, enumerate the produced dataset files and perform stage 2, including
+explicit status checks. This only verifies that dataset-file view, not every output destination.
 
 **The loop tests the running set, not a terminal set.** `IngestionJobStatus` maps any status
 a newer server adds into `UNKNOWN`. Waiting *while* the status is known-running exits on
 anything unrecognized and the `COMPLETED` check makes that loud; waiting *until* the status
 is in a fixed terminal set spins forever instead, since `UNKNOWN` is never terminal. The
-deadline covers a server that adds a new non-terminal status.
+deadline bounds a job that remains in a known-running status.
 
 The rest of the handle:
 
@@ -83,6 +113,24 @@ job.produced_file_count
 job.cancel()        # stop a job that is still running
 job.nominal_url     # the job's page in the Nominal app
 ```
+
+## Verify the resulting data
+
+A successful container exit plus successful file ingestion establishes execution, not the
+meaning of the data. For the representative capture, inspect selected expected values,
+channel names and units/conversions, absolute start/end bounds, alignment with known events
+or comparison channels, and actual tag keys/values and partitions. Check the agreed empty,
+filtered and malformed-record behavior. Verify video/log or other destinations separately
+when they are part of the contract. Missing expected outputs are a failure to validate even
+when every observed dataset file succeeded.
+
+Report the image version/RID observed for the run, target dataset/scope, job RID/link, file
+statuses and semantic checks actually performed. The active image fetched before submission
+is only a snapshot; if activation could have raced with submission, verify the job's image
+from live job details rather than asserting that snapshot ran. Name limits such as unavailable
+data queries or unverified video output. Put routine results in the existing workflow output,
+not a new report or progress registry. On resume, fetch live extractor/job/file state and
+continue from that evidence rather than treating saved handles as current.
 
 ## Debugging a failed job
 
@@ -136,7 +184,7 @@ faster than iterating through platform ingests.
 
 ## Recurring workflows
 
-Once the image is registered, triggering is the only per-file step.
+Once the image is active, reuse the agreed contract for recurring uploads.
 
 - **Scripted batch** — collect the jobs from the whole loop *before* waiting on any of them;
   they run server-side in parallel, so waiting inside the loop serializes work that needn't

@@ -13,17 +13,20 @@ registration; output goes to `$OUTPUT_DIR`; parameters arrive as environment-var
 strings; and `_NOMINAL_*` variables carry the registered contract plus, on newer platforms,
 system metadata (job and dataset RIDs, resolved timestamp metadata, tags).
 
-Never read these directly. The context object (`ctx`) resolves all of it, and the `_NOMINAL_*`
-ones are absent on local runs.
+Use the context object (`ctx`) to resolve these values. Platform-injected `_NOMINAL_*`
+metadata is absent on ordinary local runs unless the test explicitly supplies it.
 
-## Entrypoint
+## Entrypoint and startup checks
+
+This is a scaffold, not an implemented parser: replace the explicit placeholder with parsing
+validated against the agreed contract.
 
 ```python
 from nominal.experimental.extractor import ManifestExtractorContext, manifest_extractor
 
 @manifest_extractor
 def my_extractor(ctx: ManifestExtractorContext) -> None:
-    ...
+    raise NotImplementedError("Implement and validate the source-format parser")
 
 if __name__ == "__main__":
     my_extractor.run()
@@ -35,7 +38,13 @@ failure — including a `SystemExit` from your code — into a non-zero exit so 
 fails cleanly. As a real entrypoint it also calls `logging.basicConfig(level=logging.INFO)`,
 so `logging` output lands in the job's captured logs. Prefer `logging` over `print`, and keep
 it sparse: the capture is capped at 1 MiB per job, so a per-row log can push your own
-traceback out of it.
+traceback out of it. Log aggregate accepted, filtered and rejected counts, not rows.
+
+At startup the runtime rejects a manifest/single-file decorator mismatch with the registered
+output format. Missing mounted inputs and required parameters earn advisory warnings; they
+do not guarantee an early failure. Read required inputs and coerce/validate essential
+parameters before doing expensive parsing. With no registered metadata, local runs do not
+exercise these contract checks.
 
 ## Reading inputs and parameters
 
@@ -63,7 +72,7 @@ An optional input the request didn't provide is *not* among the run's inputs —
 
 ## System metadata
 
-All optional; `None` or empty on local runs.
+All optional; `None` or empty when not injected, as in ordinary local runs.
 
 ```python
 ctx.ingest_job_rid          # str | None
@@ -76,7 +85,9 @@ ctx.job_timestamp_metadata  # TimestampMetadata | None: the job-level default ou
 
 The contract new extractors use, for images registered `MANIFEST`. Declare each file with the
 method for its format; the runtime writes `manifest.json` from the declarations when your
-function returns. At least one declaration is required.
+function returns. At least one declaration is required. Write files beneath `ctx.output_dir`
+and declare them; undeclared files are warned about and not ingested. `manifest.json` is
+reserved for the runtime.
 
 ```python
 ctx.add_tabular(
@@ -127,14 +138,29 @@ Format-specific rules:
 - Declaring the same file twice is allowed, and each declaration becomes its own manifest
   entry — e.g. one table ingested under two timestamp columns.
 
-Per-output timestamp metadata supports **numeric types only**: `"epoch_seconds"`,
-`"epoch_milliseconds"`, `"epoch_microseconds"`, `"epoch_nanoseconds"`, or the typed
-`ts.Epoch(unit=...)` / `ts.Relative(unit=..., start=...)`. An output needing ISO 8601 or a
-custom format must omit the pair and inherit the job-level metadata, which supports the full
-range. Resolution order per file: per-output metadata → the ingest request's override → the
-image's registered default. The override-or-default part is resolved *before* the container
-runs and ingestion fails if both are absent, which is why registration always requires a
-default. See `modeling.md` for the choice this machinery exists to serve.
+## Timestamp metadata contract
+
+This section is authoritative for metadata types and precedence; see
+[modeling](modeling.md#timestamps-choose-from-evidence) for choosing the source clock model.
+
+| Location | Supported timestamp types |
+|---|---|
+| Manifest tabular/log declaration | Numeric `ts.Epoch(unit=...)`, `ts.Relative(unit=..., start=...)`, or `"epoch_seconds"` / `"epoch_milliseconds"` / `"epoch_microseconds"` / `"epoch_nanoseconds"`; column and type together, or neither. |
+| Manifest Avro declaration | The same numeric types; no column argument, since the schema uses `timestamps`. |
+| Ingest request / image default | Full timestamp types, including `ts.Iso8601()` and `ts.Custom(format=...)`; string types cannot interpret Avro's integer timestamps. |
+| Video declaration | Its own start or per-frame timing contract described above. |
+
+Per output, resolution is **manifest metadata → ingest request override → image default**.
+To preserve absolute strings, omit the per-output timestamp pair and inherit matching
+request/default metadata. The platform resolves request override or image default *before*
+running the container and fails if both are absent, even with a fully described manifest.
+SDK registration requires a default; older registration paths may have images without one,
+which require an override on every ingest. Never use a fixed capture start as an image default.
+
+`ctx.job_timestamp_metadata` exposes the resolved job default when injected. Ordinary local
+runs have none and can still finalize outputs; that success does not prove the platform has
+required timestamp metadata. Keep capture-specific starts in the manifest or ingest request,
+and verify decoded absolute bounds in local checks and after real ingestion.
 
 ## Declaring outputs — single-file mode
 
@@ -142,7 +168,11 @@ The original contract, for images registered `PARQUET`, `CSV`, or `AVRO_STREAM`:
 output file, parsed per the registered format. For maintaining an image already registered
 this way — write new extractors as manifest extractors.
 
+Illustrative only: `read_input` and `write_parquet` below are project parser/writer placeholders.
+
 ```python
+from nominal.experimental.extractor import SingleFileExtractorContext, single_file_extractor
+
 @single_file_extractor
 def convert(ctx: SingleFileExtractorContext) -> None:
     out = ctx.output_dir / "converted.parquet"
@@ -151,8 +181,9 @@ def convert(ctx: SingleFileExtractorContext) -> None:
 ```
 
 `set_output` records a file you already wrote under `ctx.output_dir`; a second call raises,
-and producing no output fails the run. Everything else — timestamps, tag columns, channel
-prefixes — comes from the job-level metadata, which is the main reason not to start here.
+and producing no output fails the run. There are no per-output timestamp, tag-column or
+channel-prefix controls here. Timestamps inherit the job default; upload tags are a separate
+ingest-request argument, not fields of `TimestampMetadata`.
 
 ## Error semantics
 
@@ -164,13 +195,13 @@ prefixes — comes from the job-level metadata, which is the main reason not to 
   are disjoint: `except ExtractorError` around a declaration will not catch an extension
   mismatch. Catch both, or neither.
 - Anything escaping your function prints a traceback and exits non-zero, failing the job.
-  That is the correct way to fail — never catch broadly to keep going, because an empty
-  dataset under a green job is much worse than a red job.
+  Let unexpected failures propagate. Only catch known record errors where the agreed policy
+  permits partial results; count rejections and report the reasons.
 
-Decide deliberately what a degenerate input means. The runtime accepts both answers: a
-declared zero-row table is a legitimate output, so an empty source can succeed and add
-nothing. Raising is usually better for exactly that reason — take the zero-row path only
-where "this capture is legitimately empty" is an expected state, not a symptom.
+Implement the agreed empty/malformed/filtering policy from [modeling](modeling.md). A declared
+zero-row table can satisfy the runtime output contract; this does not establish a meaningful
+capture. Distinguish empty source, all-filtered data and malformed records, and assert the
+intended result for each rather than quietly returning a green empty output.
 
 The runtime also logs advisory warnings — at startup for a registered-required parameter with
 no value or a registered input that isn't mounted, and at finalize for undeclared files left
@@ -181,25 +212,29 @@ in the output directory. They usually point straight at the bug.
 `Extractor.run` takes an explicit environment, so extractors are testable without Docker or
 platform access:
 
+The example assumes a project `convert_manifest` function decorated with `@manifest_extractor`,
+a representative `raw_file` fixture, and an existing `out_dir` directory. It demonstrates the
+invocation, not a complete parser or sufficient test:
+
 ```python
-def test_convert(tmp_path):
-    raw = tmp_path / "raw.bin"
-    raw.write_bytes(make_test_frames())
-    out_dir = tmp_path / "out"
-    out_dir.mkdir()
-
-    ctx = convert.run(
-        env={
-            "OUTPUT_DIR": str(out_dir),
-            "RAW_FILE": str(raw),   # local runs read input env vars directly
-            "THRESHOLD": "0.9",
-        },
-        exit=False,                 # re-raise failures instead of sys.exit(1)
-    )
-
-    table = pq.read_table(out_dir / "telemetry.parquet")
-    assert table.num_rows > 0
+ctx = convert_manifest.run(
+    env={
+        "OUTPUT_DIR": str(out_dir),
+        "RAW_FILE": str(raw_file),
+        "THRESHOLD": "0.9",
+    },
+    exit=False,
+)
+manifest = ctx.build_manifest()
 ```
+
+Read the generated files and check selected expected values, channel names, units/conversions,
+and preserved timestamp precision. Decode timestamps with the declared metadata and check
+absolute start/end bounds against the fixture's known capture, including resets or malformed
+times. Check declared paths, formats, timestamp fields, tag-to-column mappings, actual tag
+values and consumed columns. Exercise missing parameters/IDs, malformed records, empty and
+all-filtered input, and rejection/filter counts according to the contract. Row count alone is
+insufficient. Use existing project tests/fixtures where practical.
 
 - **`env` replaces the environment, it does not merge.** What you pass is the entire
   environment the run sees, so it must carry `OUTPUT_DIR`, every input, and every parameter
@@ -220,5 +255,5 @@ def test_convert(tmp_path):
   docker run --rm \
     -v "$PWD/testdata:/input:ro" -v "$PWD/out:/output" \
     -e OUTPUT_DIR=/output -e RAW_FILE=/input/raw.bin -e THRESHOLD=0.9 \
-    my-extractor:0.1.0
+    my-extractor:0.3.0-g1a2b3c4-b42
   ```

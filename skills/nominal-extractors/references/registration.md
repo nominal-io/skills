@@ -1,11 +1,35 @@
 # Building and registering images
 
-Everything here runs on your machine or in CI, against the platform — through
-`NominalClient`, or through the `nom container` CLI, which covers the same lifecycle.
+Reuse the project's stable extractor, release convention, configured authentication and
+existing registration code. Inspect the live extractor and contract before changing an
+existing deployment. Create an extractor only when a new identity is intended; uploaders
+select that stable identity while images change underneath it.
 
-## Dockerfile
+Keep the executable contract in a checked-in Python registration script by default, with
+short rationale and commands in the existing README. Deployment inputs follow the project's
+existing convention; environment variables below are illustrative. Do not add a local state
+registry or ask for credentials in chat.
 
-An ordinary image whose entrypoint runs your extractor script:
+## Choose the release identity
+
+These are three different uses of “tag”:
+
+| Tag | Purpose |
+|---|---|
+| Local Docker tag, e.g. `my-extractor:0.3.0-g1a2b3c4-b42` | Selects the local image to inspect and save. |
+| Nominal registration tag, e.g. `0.3.0-g1a2b3c4-b42` | Immutable version under the stable extractor. |
+| Telemetry tags, e.g. `{"stand": "Stand-A"}` | Dimensions on ingested data; not image-version metadata. |
+
+Prefer existing semver or CI release IDs. If introducing a scheme, a source revision plus a
+unique build ID, or an intentionally assigned manual version, identifies distinct builds.
+The example `0.3.0-g1a2b3c4-b42` is illustrative, not mandatory. A source SHA alone does not
+prove reproducibility: base images, dependencies and build inputs can change. Do not use
+movable `latest`/`prod` aliases as immutable registration versions or append random suffixes
+to make retries pass.
+
+## Build and verify amd64
+
+Use an ordinary entrypoint; Nominal supplies runtime configuration through the environment:
 
 ```dockerfile
 FROM python:3.12-slim
@@ -14,191 +38,152 @@ COPY extract.py /app/extract.py
 ENTRYPOINT ["python", "/app/extract.py"]
 ```
 
-Install `nominal` plus your format libraries, and pin versions for reproducible rebuilds. No
-CMD arguments and no shell wrapper are needed — all configuration arrives through the
-environment. Keep the image lean: the whole thing is uploaded as a tarball on every
-registration.
-
-## Build and save — amd64 is required
+This minimal Dockerfile illustrates structure. Pin the base image and dependencies through
+the project's normal lock/build convention before relying on repeatable releases. Include
+all parser libraries; the container does not inherit the developer's environment.
 
 ```sh
-docker build --platform linux/amd64 -t my-extractor:0.1.0 .
-docker save my-extractor:0.1.0 -o my-extractor-0.1.0.tar
+docker build --platform linux/amd64 -t my-extractor:0.3.0-g1a2b3c4-b42 .
+docker save my-extractor:0.3.0-g1a2b3c4-b42 -o my-extractor-0.3.0-g1a2b3c4-b42.tar
+docker inspect my-extractor:0.3.0-g1a2b3c4-b42 --format '{{.Architecture}}'
+python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.3.0-g1a2b3c4-b42.tar
 ```
 
-`register_image` uploads that `docker save` tarball. There is no `docker push` and no
-external registry — Nominal hosts the image itself.
+`register_image` uploads the `docker save` archive directly to Nominal; no external registry
+or `docker push` is needed. An arm64 image can register and report READY but fail at ingest
+with an exec format error. Verify the actual archive before upload. The bundled helper
+handles OCI and legacy Docker-save layouts, rejects non-amd64 images, and exits 2 for an
+unreadable archive: investigate rather than proceed. Resolve `EXTRACTOR_SKILL_DIR` from the
+installed skill location as described in [SKILL.md](../SKILL.md#locate-bundled-resources).
+For CI, check the helper into the project and run that copy; never depend on an agent cache.
 
-Nothing checks the architecture. An arm64 image (the default on Apple Silicon) registers,
-activates, and reports READY, then fails at ingest with an exec format error — surfacing in a
-job log long after the mistake, looking like a broken extractor rather than a missing build
-flag. Verify before registering, and keep the check in CI:
+## Register the contract in code
+
+Adapt the contract to the agreed parser. This example assumes an existing extractor and
+configured Nominal profile; importing the script performs no platform mutations:
+
+```python
+import os
+
+from nominal.core import (
+    FileExtractionInput, FileExtractionParameter, FileOutputFormat, NominalClient,
+)
+
+
+def main() -> None:
+    client = NominalClient.from_profile(os.environ["NOMINAL_PROFILE"])
+    extractor = client.get_containerized_extractor(os.environ["EXTRACTOR_RID"])
+    image = extractor.register_image(
+        os.environ["IMAGE_ARCHIVE"],
+        tag=os.environ["IMAGE_VERSION"],
+        inputs=[
+            FileExtractionInput(
+                name="Raw file",
+                environment_variable="RAW_FILE",
+                description="ACME logger .bin capture",
+                file_suffixes=["bin"],
+                required=True,
+            ),
+        ],
+        parameters=[
+            FileExtractionParameter(
+                name="Quality threshold",
+                environment_variable="THRESHOLD",
+                description="Drop samples with quality below this value (0-1)",
+                required=False,
+            ),
+        ],
+        output_format=FileOutputFormat.MANIFEST,
+        default_timestamp_column="time_s",
+        default_timestamp_type="epoch_seconds",
+    )
+    print(image.rid)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+With `EXTRACTOR_RID` and the configured `NOMINAL_PROFILE` supplied through the existing
+deployment convention:
 
 ```sh
-docker inspect my-extractor:0.1.0 --format '{{.Architecture}}'   # while it's in the daemon
-python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.1.0.tar
+IMAGE_ARCHIVE=my-extractor-0.3.0-g1a2b3c4-b42.tar \
+IMAGE_VERSION=0.3.0-g1a2b3c4-b42 python register_image.py
 ```
 
-The bundled `check_image_arch.py` reads the architecture out of the tarball itself, for the
-case the daemon isn't there — CI that only has the artifact, or a tarball someone handed you.
-It exits non-zero when the image isn't amd64, handles both layouts `docker save` produces
-(OCI `index.json` + `blobs/`, and the legacy `manifest.json` plus per-image config), and exits
-2 when it can't parse the tarball — which means *check by hand*, not *proceed*.
+Input and parameter environment-variable names must be distinct across both lists and match
+parser lookups and callers' `sources`/`arguments`. Suffixes aid discovery, not validation;
+required parameters still need parser-side validation. See [modeling](modeling.md).
 
-`$EXTRACTOR_SKILL_DIR` is this skill's installed directory, which you resolve (see "Locating
-this skill's own files" in `SKILL.md`); it is not set for you. **To put the check in CI, copy
-the helper into the repository** — `scripts/check_image_arch.py` beside the Dockerfile — and
-call that checked-in copy from the pipeline. A pipeline must not reach into an agent's plugin
-cache.
+**Registration defaults to `PARQUET`.** Pass `MANIFEST` explicitly for `@manifest_extractor`;
+`@single_file_extractor` requires matching `PARQUET`, `CSV`, or `AVRO_STREAM`. Only these four
+formats can be registered (`REGISTERABLE_OUTPUT_FORMATS`). A mismatch fails at startup.
+Timestamp defaults are required; use the authoritative
+[timestamp metadata contract](authoring.md#timestamp-metadata-contract) for types, precedence
+and capture-specific starts.
 
-## Create the extractor (once)
+Keep provenance in usual build output or existing release notes: source revision, build ID
+and archive checksum, registered contract, version and returned image RID. An archive checksum
+identifies those archive bytes; it is not an OCI image digest. Image objects do not offer
+arbitrary telemetry-style tags for provenance. Do not create a separate state/config registry.
 
-```python
-extractor = client.create_containerized_extractor(
-    "My Format Converter",
-    description="Parses ACME vX binary telemetry into channels",
-)
-print(extractor.rid)   # save this; it's the stable handle
-```
+If registration raises `NominalAlreadyExistsError`, query
+`extractor.search_container_images(tag=version)` and inspect the existing image's contract.
+Reuse it only when release evidence establishes the same artifact and contract; a matching
+source revision or version string is insufficient. Otherwise choose a deliberate new release
+identity. Do not delete/recreate the old version or blindly retry with random suffixes.
 
-Images come and go underneath it. Retrieve it later with
-`client.get_containerized_extractor(rid)` or `client.search_containerized_extractors()`.
+For a new stable identity, `client.create_containerized_extractor(name, description=...)`
+returns the extractor. Existing ones are retrieved with `get_containerized_extractor(rid)` or
+found with `search_containerized_extractors()`. Preserve that RID in the project's existing
+deployment convention.
 
-## Register an image
+## Activate within the authorized scope
 
-```python
-from nominal.core import FileExtractionInput, FileExtractionParameter, FileOutputFormat
-
-image = extractor.register_image(
-    "my-extractor-0.1.0.tar",
-    tag="0.1.0",
-    inputs=[
-        FileExtractionInput(
-            name="Raw file",                    # display name shown to uploaders
-            environment_variable="RAW_FILE",    # how your code reads it
-            description="ACME logger .bin capture",
-            file_suffixes=["bin"],              # accepted suffixes; empty = any file
-            required=True,
-        ),
-    ],
-    parameters=[
-        FileExtractionParameter(
-            name="Quality threshold",
-            environment_variable="THRESHOLD",
-            description="Drop samples with quality below this value (0-1)",
-            required=False,
-        ),
-    ],
-    output_format=FileOutputFormat.MANIFEST,
-    default_timestamp_column="time_s",
-    default_timestamp_type="epoch_seconds",
-)
-```
-
-- **`tag`** — immutable. Registering an already-used tag raises `NominalAlreadyExistsError`,
-  so version tags (`0.1.0`, a git short SHA) and register a new one for every code change.
-- **`inputs` / `parameters`** — the `environment_variable` is the contract key everywhere:
-  how the code reads the value (`ctx.input("RAW_FILE")`) and how ingest requests supply it
-  (`sources={"RAW_FILE": path}`). Each must be distinct across inputs and parameters. See
-  `modeling.md` for which values belong in which — and for why `required` means much less on
-  a parameter than on an input.
-- **`output_format`** — must match the decorator (`MANIFEST` ↔ `@manifest_extractor`;
-  `PARQUET`/`CSV`/`AVRO_STREAM` ↔ `@single_file_extractor`). **It defaults to `PARQUET`**, so
-  a manifest extractor has to pass it explicitly; omit it and you register the single-file
-  contract, after which every run fails at container startup. Only those four register — the
-  backend has no reader for the other formats, so `register_image` rejects them up front
-  (`REGISTERABLE_OUTPUT_FORMATS`).
-- **`default_timestamp_column` / `default_timestamp_type`** — required. Stored as the image's
-  `default_timestamp_metadata`, the last stop in the resolution order (`authoring.md`), and it
-  accepts the full range of types where per-output metadata doesn't. `ts.Relative` is accepted
-  but is almost always wrong as a *default*: its `start` would apply to every future ingest.
-
-## Activate it
-
-Registration attaches the image but does not change what runs:
+SDK registration attaches an image; it does not activate it. Before activation, fetch the
+live target extractor, inspect its active image/contract, and identify the prior image RID
+for rollback. Confirm the intended environment and the scope already authorized; registration
+alone is not evidence of authorization to switch a production extractor.
 
 ```python
+extractor = client.get_containerized_extractor(extractor_rid)
+prior_image = extractor.active_image
+image = client.get_container_image(image_rid)
 extractor = extractor.set_active_image(image)
+assert client.get_containerized_extractor(extractor_rid).active_image.rid == image.rid
 ```
 
-This is the atomic switch: ingests started after it run the new image, and in-flight jobs
-finish on the image they started with. `set_active_image` polls the image to `READY` first
-(`poll_until_ready=False` raises immediately if it isn't).
+`set_active_image` waits for READY first; `poll_until_ready=False` raises if the image is not
+ready. Future ingests use the new image; in-flight jobs finish on their starting image.
+Rollback means reactivating the known prior image, then verifying live state. It changes
+future jobs and does not repair data already ingested. A canary requires a real test extractor
+or environment with the candidate active; ingestion has no arbitrary image override.
 
-## The same thing from CI: `nom container`
+Contract changes require both sides: update callers for renamed inputs/parameters, decorators
+for changed output modes, and parser/request metadata for changed timestamps. Activation does
+not migrate old data. Validate a representative ingest using [running](running.md).
 
-The CLI covers the whole lifecycle except triggering ingests, which stays in the SDK or the
-web app. `register-image` prints the new image RID on stdout with status messages on stderr,
-so it composes:
+## Existing CLI/CI workflows
+
+Preserve projects already using `nom container` and its checked-in config JSON. It is an
+optional contract representation, not the only version-controlled choice. Flags override the
+config; unknown keys are rejected. Validate before upload:
 
 ```sh
-IMAGE_RID=$(nom container extractor register-image -r "$EXTRACTOR_RID" \
-    -f my-extractor.tar -t "$(git rev-parse --short HEAD)" -c extractor-config.json)
-nom container extractor set-active-image -r "$EXTRACTOR_RID" -i "$IMAGE_RID"
+nom container extractor validate-config extractor-config.json
+nom container extractor register-image -r "$EXTRACTOR_RID" \
+    -f my-extractor-0.3.0-g1a2b3c4-b42.tar -t 0.3.0-g1a2b3c4-b42 -c extractor-config.json
 ```
 
-`register-image` waits for `READY` by default (`--no-wait` to skip), and the contract comes
-from a config JSON checked in beside the Dockerfile — which is the real reason to prefer the
-CLI in CI, since it keeps the contract in version control instead of in a script:
+Validation is local and needs no credentials. Registration prints the image RID on stdout,
+status on stderr, and waits for READY by default (`--no-wait` skips waiting). Activation is
+separate: `nom container extractor set-active-image -r "$EXTRACTOR_RID" -i "$IMAGE_RID"`.
+The CLI does not trigger containerized ingests; use the SDK or web app.
 
-```json
-{
-  "tag": "0.1.0",
-  "output_format": "manifest",
-  "default_timestamp_column": "time_s",
-  "default_timestamp_type": "epoch_seconds",
-  "inputs": [
-    {
-      "name": "Raw file",
-      "environment_variable": "RAW_FILE",
-      "description": "ACME logger .bin capture",
-      "file_suffixes": ["bin"],
-      "required": true
-    }
-  ],
-  "parameters": [
-    {"name": "Quality threshold", "environment_variable": "THRESHOLD", "required": false}
-  ]
-}
-```
-
-Keys are the snake_case `FileExtractionInput` / `FileExtractionParameter` fields, and every
-top-level key is optional — flags override the file, and `--tag`, `--timestamp-column`,
-`--timestamp-type`, `--output-format` can supply anything it omits. Unknown keys are
-rejected rather than ignored, so a typo fails instead of silently dropping an input.
-
-`nom container extractor validate-config extractor-config.json` runs exactly the validation
-`register-image` does before uploading — unknown keys, unparseable entries, empty names,
-duplicate environment variables, unknown timestamp types and output formats — without
-contacting Nominal. It needs no credentials, so it belongs in the same CI job that builds the
-image, alongside the checked-in copy of `check_image_arch.py`.
-
-The rest: `nom container extractor create | get | search | update | archive | unarchive`, and
-`nom container image get | search | delete`. `search` takes `--format csv` for scripting.
-
-## Image lifecycle
-
-- **Statuses**: `PENDING` (processing) → `READY` or `FAILED`. Current backends return images
-  `READY` from `register_image` directly; `image.poll_until_ready()` covers asynchronous ones.
-- **Upgrade**: build a new tarball → `register_image(tag="0.2.0", ...)` → `set_active_image`.
-  The old image stays registered, so rolling back is re-activating it.
-- **Inspect**: `extractor.active_image` is what runs (or `None` — ingests fail until one is
-  activated), and it carries the live contract, so `extractor.active_image.inputs` is the
-  authoritative answer to "what keys does `sources` need?".
-  `extractor.search_container_images(tag=..., status=...)` and
-  `client.search_container_images(...)` list images; `client.get_container_image(rid)` fetches
-  one.
-- **Delete**: `image.delete()`, which fails server-side while an extractor has it active.
-- **Extractor-level**: `extractor.update(name=..., description=...)`; `extractor.archive()`
-  hides it from search and rejects new ingests; `extractor.unarchive()` reverses that.
-
-## When a new version changes the contract
-
-Not just the code — update both sides:
-
-- new or renamed input/parameter environment variables → update every caller's `sources` and
-  `arguments`;
-- output format change (single-file ↔ manifest) → change the decorator too, or every run
-  fails at startup;
-- timestamp column or type change → the registered default is per-image, so the new
-  registration carries it; also update any per-output metadata in the code.
+For live inspection use `extractor.active_image`, `extractor.search_container_images(...)`,
+`client.search_container_images(...)` or `client.get_container_image(rid)`. Image processing
+statuses are PENDING, READY and FAILED; `image.poll_until_ready()` handles asynchronous
+processing. `image.delete()` fails while active and is not a version-retry strategy.
+Extractor `update`, `archive` and `unarchive` manage the stable identity; archive hides it from
+search and rejects new ingests. On resume, query Nominal rather than trusting a local snapshot.
