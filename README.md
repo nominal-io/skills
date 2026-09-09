@@ -165,9 +165,6 @@ invoke the skill explicitly. OpenAI invocation and discovery behavior is documen
 
 ## Verify
 
-See [compatibility verification](docs/compatibility-verification.md) for tested revisions,
-actual host results, and remaining gaps.
-
 After installing, start or reload your agent, then invoke a skill or just describe the task:
 
 - **`nominal-ingest`** — "Ingest this folder of flight data into Nominal." The agent should
