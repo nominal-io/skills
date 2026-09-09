@@ -1,7 +1,7 @@
-# Optional OpenAI host metadata (agents/openai.yaml in the agent-skills spec).
+# Optional OpenAI host metadata for display and invocation.
 # Display and starter-prompt only: this skill needs Python, Docker, and Nominal
 # credentials on the user's machine, none of which are MCP tool dependencies.
 interface:
   display_name: "Nominal Extractors"
   short_description: "Build and debug custom Nominal file converters"
-  default_prompt: "Help me build or debug a Nominal containerized extractor for a file format Nominal doesn't parse natively."
+  default_prompt: "Use $nominal-extractors to help me build or debug a Nominal containerized extractor for a file format Nominal doesn't parse natively."
