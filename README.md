@@ -152,16 +152,21 @@ Explicit invocation is host-specific:
 | Host | Example |
 | --- | --- |
 | ChatGPT | type `@`, pick the skill, then the request: `@nominal-ingest Ingest this folder of flight data.` |
-| Codex CLI / IDE | `$nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
+| Codex CLI, native plugin | `$nominal-skills:nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
+| Codex CLI / IDE, direct skill install | `$nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
 | Claude Code, native plugin | `/nominal-skills:nominal-ingest` |
 | Cursor and other slash-command hosts | `/nominal-ingest` |
 
-Substitute any installed skill name from the table above. Hosts that support implicit
+For native plugins, keep the `nominal-skills:` namespace when substituting a skill name.
+Selecting the skill from the host picker avoids ambiguity between installation methods. Hosts that support implicit
 selection can match your request against the skill description. If selection is unreliable,
 invoke the skill explicitly. OpenAI invocation and discovery behavior is documented in
 [Build skills](https://learn.chatgpt.com/docs/build-skills).
 
 ## Verify
+
+See [compatibility verification](docs/compatibility-verification.md) for tested revisions,
+actual host results, and remaining gaps.
 
 After installing, start or reload your agent, then invoke a skill or just describe the task:
 
