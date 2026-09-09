@@ -4,10 +4,13 @@ Nominal's [agent skills](https://agentskills.io/specification): packaged instruc
 
 ## Skills
 
-| Skill | What it does | Invoke | Instructions |
-| --- | --- | --- | --- |
-| `nominal-ingest` | Plans and executes ingestion of a folder of test or campaign data into Nominal. | `/nominal-ingest` | [`SKILL.md`](skills/nominal-ingest/SKILL.md) |
-| `connect-app` | Scaffolds a Nominal Connect app (`app.connect` UI + Python scripts) from a description of its UI and behavior. | `/connect-app` | [`SKILL.md`](skills/connect-app/SKILL.md) |
+| Skill | What it does | Instructions |
+| --- | --- | --- |
+| `nominal-ingest` | Plans and executes ingestion of a folder of test or campaign data into Nominal. | [`SKILL.md`](skills/nominal-ingest/SKILL.md) |
+| `connect-app` | Scaffolds a Nominal Connect app (`app.connect` UI + Python scripts) from a description of its UI and behavior. | [`SKILL.md`](skills/connect-app/SKILL.md) |
+
+How you invoke a skill depends on the host — see [Invoke](#invoke). Every skill also triggers
+from a plain description of the task; explicit invocation is the fallback, not the norm.
 
 ## Install
 
@@ -28,6 +31,24 @@ To install globally:
 ```sh
 npx skills add nominal-io/skills -g -a cursor
 ```
+
+### ChatGPT
+
+**This route has not been verified from a clean ChatGPT session.** These skills use the shared
+[agent skills](https://agentskills.io/specification) format that ChatGPT reads, and a skill can
+carry optional OpenAI display metadata (`agents/openai.yaml`) — but this repository is not
+published in the universal plugin directory, and OpenAI's
+[skill documentation](https://learn.chatgpt.com/docs/build-skills) does not document a route
+for installing a skill from a GitHub repository into ChatGPT itself. Check the current
+documentation before relying on any of this.
+
+The `codex plugin marketplace add` command below is a **Codex** command. It is not a ChatGPT
+command, and installing into Codex does not install into ChatGPT.
+
+To load a skill by hand, copy the entire skill directory — `SKILL.md` together with its
+`references/` and `scripts/` — into the skills location your surface reads. Copying `SKILL.md`
+alone drops the reference material and helper scripts its instructions point at, and the skill
+will fail partway through.
 
 ### Codex
 
@@ -96,6 +117,10 @@ mkdir -p .agents/skills
 cp -R nominal-skills/skills/nominal-ingest .agents/skills/
 ```
 
+Copy the whole skill directory, not just its `SKILL.md`: `references/`, `scripts/`, and
+`assets/` are part of the package, and a skill's instructions resolve them relative to the
+installed skill directory.
+
 Replace `.agents/skills` with the project or user-level skills directory
 supported by your agent. For SSH-only Git access:
 
@@ -103,17 +128,32 @@ supported by your agent. For SSH-only Git access:
 npx skills add git@github.com:nominal-io/skills.git
 ```
 
+## Invoke
+
+Explicit invocation is host-specific:
+
+| Host | Example |
+| --- | --- |
+| ChatGPT | type `@`, pick the skill, then the request: `@nominal-ingest Ingest this folder of flight data.` |
+| Codex CLI / IDE | `$nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
+| Claude Code, native plugin | `/nominal-skills:nominal-ingest` |
+| Cursor and other slash-command hosts | `/nominal-ingest` |
+
+Substitute any skill name from the table above. Where a host has no invocation syntax,
+describing the task is enough — the `description` in each `SKILL.md` is what a host matches on.
+
 ## Verify
 
-After installing, start or reload your agent and ask it to use the skill:
+After installing, start or reload your agent, then invoke a skill or just describe the task:
 
-- **Cursor:** type `/nominal-ingest`, or ask for help ingesting a folder of data.
-- **Codex:** type `$nominal-ingest` (or `/skills` and select it).
-- **Claude Code:** after native plugin installation, type `/nominal-skills:nominal-ingest`.
-- **Other agents:** type `/nominal-ingest` if slash commands are supported, or ask the agent to list its loaded skills.
+- **`nominal-ingest`** — "Ingest this folder of flight data into Nominal." The agent should
+  walk the folder and propose a plan before creating anything, per
+  [`SKILL.md`](skills/nominal-ingest/SKILL.md).
+- **`connect-app`** — "Build me a Connect app with a plot of engine pressure and a start/stop
+  button." The agent should settle the spec — target directory, tabs, scripts, streams and
+  topics — before writing files, per [`SKILL.md`](skills/connect-app/SKILL.md).
 
-The agent should recognize the skill and follow the planning-first workflow described in
-[`SKILL.md`](skills/nominal-ingest/SKILL.md).
+If the agent doesn't recognize a skill, ask it to list its loaded skills.
 
 ## Prerequisite
 
