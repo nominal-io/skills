@@ -35,15 +35,21 @@ job log long after the mistake, looking like a broken extractor rather than a mi
 flag. Verify before registering, and keep the check in CI:
 
 ```sh
-docker inspect my-extractor:0.1.0 --format '{{.Architecture}}'   # want: amd64
-python scripts/check_image_arch.py my-extractor-0.1.0.tar        # or from the tarball alone
+docker inspect my-extractor:0.1.0 --format '{{.Architecture}}'   # while it's in the daemon
+python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.1.0.tar
 ```
 
-`scripts/check_image_arch.py` reads the architecture out of the tarball and exits non-zero
-when it isn't amd64, so it drops into a pipeline ahead of the registration step. It handles
-both layouts `docker save` produces (OCI `index.json` + `blobs/`, and the legacy
-`manifest.json` plus per-image config), and exits 2 when it can't parse the tarball — which
-means *check by hand*, not *proceed*.
+The bundled `check_image_arch.py` reads the architecture out of the tarball itself, for the
+case the daemon isn't there — CI that only has the artifact, or a tarball someone handed you.
+It exits non-zero when the image isn't amd64, handles both layouts `docker save` produces
+(OCI `index.json` + `blobs/`, and the legacy `manifest.json` plus per-image config), and exits
+2 when it can't parse the tarball — which means *check by hand*, not *proceed*.
+
+`$EXTRACTOR_SKILL_DIR` is this skill's installed directory, which you resolve (see "Locating
+this skill's own files" in `SKILL.md`); it is not set for you. **To put the check in CI, copy
+the helper into the repository** — `scripts/check_image_arch.py` beside the Dockerfile — and
+call that checked-in copy from the pipeline. A pipeline must not reach into an agent's plugin
+cache.
 
 ## Create the extractor (once)
 
@@ -165,7 +171,7 @@ rejected rather than ignored, so a typo fails instead of silently dropping an in
 `register-image` does before uploading — unknown keys, unparseable entries, empty names,
 duplicate environment variables, unknown timestamp types and output formats — without
 contacting Nominal. It needs no credentials, so it belongs in the same CI job that builds the
-image, alongside `check_image_arch.py`.
+image, alongside the checked-in copy of `check_image_arch.py`.
 
 The rest: `nom container extractor create | get | search | update | archive | unarchive`, and
 `nom container image get | search | delete`. `search` takes `--format csv` for scripting.

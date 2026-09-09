@@ -1,6 +1,6 @@
 ---
 name: nominal-extractors
-description: Build, test, register, and run Nominal containerized extractors — custom Docker images the Nominal platform runs during ingest to parse proprietary or unsupported file formats into datasets. Use this whenever the user mentions containerized extractors, custom extractors, nominal.experimental.extractor, @single_file_extractor / @manifest_extractor, register_image, add_containerized, `nom container`, extractor manifests, or asks how to ingest a file format Nominal doesn't natively support (binary telemetry, vendor logger output, packed/proprietary formats), how to convert files server-side during ingest, or how to debug a containerized ingest job.
+description: Build, test, register, or debug Nominal containerized extractors — Docker images Nominal runs server-side during ingest to convert proprietary or unsupported file formats into datasets. Use for reusable server-side conversion, extractor manifests, image registration (`register_image`, `nom container`), and containerized ingest failures. For ordinary ingestion of formats Nominal already parses, use nominal-ingest instead.
 ---
 
 # Nominal Containerized Extractors
@@ -42,6 +42,31 @@ registers and switches over atomically.
 Downstream, ingest turns each output file's columns or records into **channels**, places
 samples in time from timestamp metadata, and applies **tags** that partition data within the
 **dataset**.
+
+## Work with the capabilities you have
+
+Identify the stage being asked for, then check what this environment actually has: the input
+files or a format spec, Python and its dependencies, Docker for building images, configured
+Nominal access for registering or ingesting. A path or profile the user mentions is not
+evidence that it exists here — look before asking them for it, and reuse configured
+authentication rather than asking anyone to paste a token into chat.
+
+Then do everything the available capabilities support and hand off the rest as code plus the
+exact commands to run. Generated commands are not evidence: report what you actually executed
+separately from what remains for the user's machine or CI.
+
+| Available | Do |
+|---|---|
+| Instructions and context only | author or review the artifacts; name the missing prerequisites |
+| Python, no Docker | run the local tests (`references/authoring.md`), prepare the build and registration handoff |
+| Docker, no Nominal access | build and inspect the image; prepare the platform commands |
+| Docker and Nominal access | execute the authorized stages and verify their results |
+
+Keep the check proportional to the request: reviewing code needs neither Docker nor
+credentials, debugging a supplied traceback needs no platform access, and a parser test needs
+no image. Match the deliverable to the stage too — a new extractor may want `extract.py`,
+tests, a Dockerfile, `extractor-config.json`, and the build/register commands, where a
+debugging request may want only a diagnosis and a corrected command.
 
 ## Lifecycle
 
@@ -122,7 +147,7 @@ client = NominalClient.from_profile("default")
 
 # docker build --platform linux/amd64 -t my-extractor:0.1.0 .
 # docker save my-extractor:0.1.0 -o my-extractor-0.1.0.tar
-# python scripts/check_image_arch.py my-extractor-0.1.0.tar
+# python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.1.0.tar
 
 extractor = client.create_containerized_extractor("My Format Converter")
 image = extractor.register_image(
@@ -167,7 +192,7 @@ has the loop to copy and the failure modes.
 - **Parameters arrive as strings.** Coerce them: `int(ctx.get_param("PARTS", "2"))`.
 - **Build for `linux/amd64`.** Nothing checks this — an arm64 image (the default on Apple
   Silicon) registers, activates, reports READY, then fails at ingest with an exec format
-  error. Verify with `scripts/check_image_arch.py <tarball>` or `docker inspect`, in CI.
+  error. Verify with `docker inspect` or this skill's `check_image_arch.py` (see below), in CI.
 - **Image tags are immutable**, and registration does not activate. Re-registering a tag
   raises `NominalAlreadyExistsError`; a new image runs only after `set_active_image`.
 - **Timestamp metadata is layered**, per output file: manifest → ingest request → the image's
@@ -192,3 +217,20 @@ has the loop to copy and the failure modes.
 | `references/registration.md` | building, registering, activating, upgrading images — SDK and `nom container` CLI |
 | `references/running.md` | triggering ingests, tracking jobs, debugging a failure |
 | `scripts/check_image_arch.py` | before every registration and in CI: exits non-zero if a `docker save` tarball isn't amd64 |
+
+## Locating this skill's own files
+
+Paths here (`references/...`, `scripts/...`) are relative to the directory holding this
+`SKILL.md` — wherever the host installed the skill, which is not the user's project or the
+shell's working directory. Resolve that directory from the host's skill location or resource
+interface and treat it as a value you establish, not one the host sets for you:
+
+```sh
+EXTRACTOR_SKILL_DIR=...   # the directory containing this SKILL.md
+python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.1.0.tar
+```
+
+Where a host exposes bundled files without filesystem paths, read the helper through that
+interface and materialize it in the working directory only when it needs to run. For CI,
+copy it into the repository (`scripts/check_image_arch.py`) and call the checked-in copy — a
+pipeline must not depend on an agent's plugin cache.
