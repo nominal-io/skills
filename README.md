@@ -8,6 +8,7 @@ Nominal's [agent skills](https://agentskills.io/specification): packaged instruc
 | --- | --- | --- |
 | `nominal-ingest` | Plans and executes ingestion of a folder of test or campaign data into Nominal. | [`SKILL.md`](skills/nominal-ingest/SKILL.md) |
 | `connect-app` | Scaffolds a Nominal Connect app (`app.connect` UI + Python scripts) from a description of its UI and behavior. | [`SKILL.md`](skills/connect-app/SKILL.md) |
+| `nominal-extractors` | Guides building, registering, and running a containerized extractor so Nominal can ingest a proprietary or unsupported file format. | [`SKILL.md`](skills/nominal-extractors/SKILL.md) |
 
 How you invoke a skill depends on the host — see [Invoke](#invoke). Installed, enabled skills
 can also be selected automatically when your request matches their description and the host
@@ -73,8 +74,8 @@ codex plugin marketplace add nominal-io/skills
 codex plugin add nominal-skills@nominal
 ```
 
-Start a new session after installation. The plugin includes the `nominal-ingest` and
-`connect-app` skills. You can also select the plugin through `/plugins` in Codex CLI.
+Start a new session after installation. The plugin includes `nominal-ingest`, `connect-app`,
+and `nominal-extractors`. You can also select it through `/plugins` in Codex CLI.
 For the IDE extension, use the direct skill installation below; native plugins are not
 available there. See [supported plugin surfaces](https://learn.chatgpt.com/docs/plugins).
 
@@ -173,6 +174,13 @@ After installing, start or reload your agent, then invoke a skill or just descri
 - **`connect-app`** — "Build me a Connect app with a plot of engine pressure and a start/stop
   button." The agent should settle the spec — target directory, tabs, scripts, streams and
   topics — before writing files, per [`SKILL.md`](skills/connect-app/SKILL.md).
+- **`nominal-extractors`** — "I have a proprietary binary telemetry format Nominal can't read.
+  How do I get it into a dataset?" The agent should reach for a containerized extractor, check
+  what this environment actually has (Docker? Nominal credentials?), and work the
+  author → build → register → ingest lifecycle in
+  [`SKILL.md`](skills/nominal-extractors/SKILL.md) — continuing as far as the available tools
+  allow and handing off the rest as commands, rather than either stalling or claiming an
+  unexecuted step succeeded.
 
 If the agent doesn't recognize a skill, ask it to list its loaded skills.
 
@@ -192,11 +200,16 @@ software, authenticate an account, or grant access to files on another machine.
 Use existing authentication configuration; do not paste tokens into a chat. The skills should
 report what was actually inspected or executed and what remains for the target environment.
 
-## Prerequisite
+## Prerequisites
 
 `nominal-ingest` uses the [`nomctl` CLI](https://github.com/nominal-io/nominal-client-rs).
 Install a release binary from the
 [nomctl releases](https://github.com/nominal-io/nominal-client-rs/releases) page and
 make `nomctl` available on your `PATH` before using the skill.
+
+`nominal-extractors` uses the [`nominal` Python SDK](https://github.com/nominal-io/nominal-client)
+for authoring and local tests. Install it with `pip install nominal`. Building and saving
+images requires Docker; registration and ingestion additionally require Nominal access.
+These are execution prerequisites, not requirements for asking for guidance or reviewing code.
 
 Questions or problems? [Open an issue](https://github.com/nominal-io/skills/issues).

@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Nominal Skills",
     "shortDescription": "Hardware telemetry skills",
-    "longDescription": "Skills for working with Nominal: ingesting hardware telemetry, test and flight campaign data with nomctl, and scaffolding Connect apps.",
+    "longDescription": "Skills for working with Nominal: ingesting hardware telemetry, test and flight campaign data with nomctl, building containerized extractors for formats Nominal does not parse natively, and scaffolding Connect apps.",
     "developerName": "Nominal",
     "category": "Developer Tools"
   },
