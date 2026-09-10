@@ -59,22 +59,18 @@ commands do not prove build, registration, activation, or successful ingest.
   `manifest.json`.
 - Match the decorator to the registered output format; explicitly register `MANIFEST` for
   new manifest extractors (registration otherwise defaults to `PARQUET`).
-- Build and verify `linux/amd64` before registration; a READY image does not prove it can run.
+- Build for `linux/amd64` and confirm with
+  `docker image inspect <tag> --format '{{.Os}}/{{.Architecture}}'` before registration;
+  a READY image does not prove it can run.
 - Registration does not activate an image. Verify the active image after activation.
 - Wait for the extraction job to finish before enumerating its dataset files, then wait for
   those files to ingest; see [running](references/running.md).
 
 ## Locate bundled resources
 
-`references/...` and `scripts/...` are relative to the installed directory containing this
-`SKILL.md`, not the project or current working directory. Resolve that location through the
-host's skill path/resource interface. For example, after establishing `EXTRACTOR_SKILL_DIR`:
-
-```sh
-python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.3.0-g1a2b3c4-b42.tar
-```
-
-If resources have no filesystem paths, read them through the host interface and materialize
-helpers only when needed. For CI, copy the helper into the repository and call that copy;
-pipelines must not depend on an agent's plugin cache. The helper verifies a `docker save`
-archive is amd64; it does not establish deployment or runtime success.
+`references/...` paths are relative to the installed directory containing this `SKILL.md`,
+not the project or current working directory. Resolve that location through the host's skill
+path/resource interface, and read them through the host interface when the resources have no
+filesystem paths. This skill bundles no executables: the checks it asks for are ordinary
+`docker`, `nom` and Python SDK commands, so a project or CI pipeline runs them directly
+rather than depending on an agent's plugin cache.

@@ -44,18 +44,30 @@ all parser libraries; the container does not inherit the developer's environment
 
 ```sh
 docker build --platform linux/amd64 -t my-extractor:0.3.0-g1a2b3c4-b42 .
+docker image inspect my-extractor:0.3.0-g1a2b3c4-b42 \
+  --format 'os={{.Os}} arch={{.Architecture}} variant={{.Variant}}'
+# want:  os=linux arch=amd64 variant=
+# wrong: os=linux arch=arm64 variant=v8   (an Apple Silicon build — rebuild, don't register)
 docker save my-extractor:0.3.0-g1a2b3c4-b42 -o my-extractor-0.3.0-g1a2b3c4-b42.tar
-docker inspect my-extractor:0.3.0-g1a2b3c4-b42 --format '{{.Architecture}}'
-python "$EXTRACTOR_SKILL_DIR/scripts/check_image_arch.py" my-extractor-0.3.0-g1a2b3c4-b42.tar
 ```
 
-`register_image` uploads the `docker save` archive directly to Nominal; no external registry
-or `docker push` is needed. An arm64 image can register and report READY but fail at ingest
-with an exec format error. Verify the actual archive before upload. The bundled helper
-handles OCI and legacy Docker-save layouts, rejects non-amd64 images, and exits 2 for an
-unreadable archive: investigate rather than proceed. Resolve `EXTRACTOR_SKILL_DIR` from the
-installed skill location as described in [SKILL.md](../SKILL.md#locate-bundled-resources).
-For CI, check the helper into the project and run that copy; never depend on an agent cache.
+Read that line rather than trusting `--platform`: an earlier native build can still own the
+tag, and a Dockerfile pinning `FROM --platform=...` overrides the flag. `register_image` does
+not check either — an arm64 image registers, reports READY, then fails at ingest with an exec
+format error. Rebuild on any other `arch`, with `--no-cache` if the build already claimed
+success. Save one amd64 image; Nominal receives an archive, not a registry it can negotiate a
+platform with, so do not assume it selects amd64 out of a multi-platform archive.
+
+To check an archive built somewhere else — a CI artifact, or a tarball handed to you — load
+it and inspect the tag `docker load` reports:
+
+```sh
+docker load --input my-extractor-0.3.0-g1a2b3c4-b42.tar
+docker image inspect my-extractor:0.3.0-g1a2b3c4-b42 --format 'arch={{.Architecture}}'
+```
+
+`register_image` uploads that archive directly to Nominal; no external registry or
+`docker push` is needed.
 
 ## Register the contract in code
 

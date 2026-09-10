@@ -156,7 +156,9 @@ traceback off the end — if the log looks truncated mid-run, that's the cap, no
 - *"`@manifest_extractor` disagrees with the image's registered output format"* — code and
   registration disagree; re-register or switch decorators.
 - *exec format error*, or the container exits instantly with no Python traceback — wrong
-  architecture. Rebuild with `--platform linux/amd64`.
+  architecture. Confirm with
+  `docker image inspect <tag> --format 'arch={{.Architecture}}'` and rebuild with
+  `--platform linux/amd64`.
 - *`ModuleNotFoundError`* — a dependency is missing from the image. Nothing carries over from
   your dev machine.
 - *ingestion fails before the container ran, complaining about timestamp metadata* — the image
