@@ -45,7 +45,7 @@ and the action is authorized; an already agreed contract needs no repeated appro
 | Understand the files | Samples/spec, existing code and README, intended comparisons | Observed structure, measurements, units, clocks, dimensions; name missing evidence instead of guessing. |
 | Agree on the contract | Observations and existing preferences | Inputs/parameters, output mode, timestamps, tags, and failure policy with rationale; resolve consequential unknowns using [modeling](references/modeling.md). |
 | Author and validate locally | Contract and representative fixtures | Parser and focused checks of decoded values/time, declarations and edge cases; report actual results using [authoring](references/authoring.md). |
-| Build and register | Validated parser, Docker, configured Nominal access | Image archive with verified architecture, registration script, and observed registration result; use [registration](references/registration.md). |
+| Build and register | Validated parser, Docker, configured Nominal access | Settled base image, image archive with verified architecture, registration script, and observed registration result; use [registration](references/registration.md). |
 | Activate and operate | Registered image, authorization and representative upload | Observed active image, terminal extraction job and completed dataset-file ingestion, then inspect resulting data; use [running](references/running.md). |
 
 Check only capabilities needed for the current stage. Inspect mentioned paths/profiles before

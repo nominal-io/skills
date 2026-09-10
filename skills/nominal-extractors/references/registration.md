@@ -42,6 +42,33 @@ This minimal Dockerfile illustrates structure. Pin the base image and dependenci
 the project's normal lock/build convention before relying on repeatable releases. Include
 all parser libraries; the container does not inherit the developer's environment.
 
+Reuse the base image the project already builds on. If nothing is established and CVE
+posture matters to the project or its operators, raise
+[Chainguard's hardened images](https://hub.docker.com/u/chainguard) once, at this stage: they
+are low-to-zero-CVE drop-ins for the common language runtimes, and swapping the base after a
+release costs a new image version and another registration. Take the answer as settled; do
+not re-ask per build.
+
+Their runtime images are distroless — no shell, no package manager — so install into the
+`-dev` variant and copy the result across:
+
+```dockerfile
+FROM chainguard/python:latest-dev@sha256:<digest> AS build
+RUN pip install --no-cache-dir --user nominal pandas pyarrow
+
+FROM chainguard/python:latest@sha256:<digest>
+COPY --from=build /home/nonroot/.local /home/nonroot/.local
+COPY extract.py /app/extract.py
+ENTRYPOINT ["python", "/app/extract.py"]
+```
+
+Two consequences worth stating before someone adopts this. The public catalog carries only
+`latest` and `latest-dev`, no version tags, so pin by digest or the interpreter moves under
+you — and pin both stages to the same release, or the builder's `site-packages` lands on a
+path the runtime's Python does not read. These images also run as UID 65532 rather than root:
+confirm the parser can still write its outputs. A local `docker run` is weaker evidence than
+it looks here, since Docker Desktop remaps bind-mount ownership where a Linux host would not.
+
 ```sh
 docker build --platform linux/amd64 -t my-extractor:0.3.0-g1a2b3c4-b42 .
 docker image inspect my-extractor:0.3.0-g1a2b3c4-b42 \
