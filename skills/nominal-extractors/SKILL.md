@@ -8,7 +8,10 @@ description: Use when building, testing, registering, or debugging Nominal conta
 A containerized extractor is a Docker image Nominal runs during ingest: uploaded files are
 mounted as inputs, your parser writes outputs, and Nominal ingests the declared files into a
 dataset. Use one for recurring proprietary or unsupported formats, including uploads from the
-web app. For supported formats or a one-off local conversion, use ordinary ingestion.
+web app. For supported formats or a one-off local conversion, use ordinary ingestion. They may
+also be used for doing any consistent post-processing or timestamp alignment that may be
+required for file formats that are supported natively (e.g., post processing the `timestamp`
+column in otherwise valid `.parquet` files).
 
 The **ContainerizedExtractor** is the stable identity uploaders select; its versioned
 **ContainerImages** carry the execution contract (inputs, parameters, output format, timestamp
