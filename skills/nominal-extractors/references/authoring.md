@@ -16,6 +16,11 @@ system metadata (job and dataset RIDs, resolved timestamp metadata, tags).
 Use the context object (`ctx`) to resolve these values. Platform-injected `_NOMINAL_*`
 metadata is absent on ordinary local runs unless the test explicitly supplies it.
 
+The container runs as a non-root user; `$OUTPUT_DIR` is writable, and `$HOME` is writable but
+starts empty on every job. Put scratch files under one of those rather than beside the code,
+and see [registration](registration.md#build-and-verify-amd64) for what an empty `$HOME`
+means when installing dependencies into the image.
+
 ## Entrypoint and startup checks
 
 This is a scaffold, not an implemented parser: replace the explicit placeholder with parsing

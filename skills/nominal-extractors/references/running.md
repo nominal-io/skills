@@ -159,8 +159,10 @@ traceback off the end — if the log looks truncated mid-run, that's the cap, no
   architecture. Confirm with
   `docker image inspect <tag> --format 'arch={{.Architecture}}'` and rebuild with
   `--platform linux/amd64`.
-- *`ModuleNotFoundError`* — a dependency is missing from the image. Nothing carries over from
-  your dev machine.
+- *`ModuleNotFoundError`* — a dependency is missing from the image; nothing carries over from
+  your dev machine. It can also mean the dependency *is* in the image but was installed under
+  `$HOME`, which the runtime mounts empty over: see
+  [registration](registration.md#build-and-verify-amd64).
 - *ingestion fails before the container ran, complaining about timestamp metadata* — the image
   was registered without a default (an older registration path) and the request supplied no
   override.

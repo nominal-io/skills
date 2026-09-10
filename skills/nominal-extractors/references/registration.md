@@ -27,47 +27,77 @@ prove reproducibility: base images, dependencies and build inputs can change. Do
 movable `latest`/`prod` aliases as immutable registration versions or append random suffixes
 to make retries pass.
 
-## Build and verify amd64
+## Choose the base image
 
-Use an ordinary entrypoint; Nominal supplies runtime configuration through the environment:
-
-```dockerfile
-FROM python:3.12-slim
-RUN pip install --no-cache-dir nominal pandas pyarrow
-COPY extract.py /app/extract.py
-ENTRYPOINT ["python", "/app/extract.py"]
-```
-
-This minimal Dockerfile illustrates structure. Pin the base image and dependencies through
-the project's normal lock/build convention before relying on repeatable releases. Include
-all parser libraries; the container does not inherit the developer's environment.
-
-Reuse the base image the project already builds on. If nothing is established and CVE
-posture matters to the project or its operators, raise
+Reuse the base image the project already builds on. If nothing is established and CVE posture
+matters to the project or its operators, raise
 [Chainguard's hardened images](https://hub.docker.com/u/chainguard) once, at this stage: they
 are low-to-zero-CVE drop-ins for the common language runtimes, and swapping the base after a
 release costs a new image version and another registration. Take the answer as settled; do
 not re-ask per build.
 
-Their runtime images are distroless — no shell, no package manager — so install into the
+Their runtime images are distroless — no shell, no package manager — so install in the
 `-dev` variant and copy the result across:
 
 ```dockerfile
 FROM chainguard/python:latest-dev@sha256:<digest> AS build
-RUN pip install --no-cache-dir --user nominal pandas pyarrow
+USER root
+COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /usr/local/bin/uv
+ENV UV_PYTHON_DOWNLOADS=never
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --python /usr/bin/python
 
 FROM chainguard/python:latest@sha256:<digest>
-COPY --from=build /home/nonroot/.local /home/nonroot/.local
+COPY --from=build /app/.venv /app/.venv
 COPY extract.py /app/extract.py
-ENTRYPOINT ["python", "/app/extract.py"]
+ENTRYPOINT ["/app/.venv/bin/python", "/app/extract.py"]
 ```
 
-Two consequences worth stating before someone adopts this. The public catalog carries only
-`latest` and `latest-dev`, no version tags, so pin by digest or the interpreter moves under
-you — and pin both stages to the same release, or the builder's `site-packages` lands on a
-path the runtime's Python does not read. These images also run as UID 65532 rather than root:
-confirm the parser can still write its outputs. A local `docker run` is weaker evidence than
-it looks here, since Docker Desktop remaps bind-mount ownership where a Linux host would not.
+`USER root` is needed because the `-dev` variant is itself non-root and the install writes
+outside the home directory. `UV_PYTHON_DOWNLOADS=never` with an explicit `--python` keeps
+`uv` on the base image's interpreter; left to itself it may fetch its own, and the venv then
+points at a path the runtime stage does not have. The public catalog carries only `latest`
+and `latest-dev`, no version tags, so pin by digest — and pin both stages to the same
+release, or the venv's interpreter symlink and `site-packages` disagree with the runtime's
+Python.
+
+## Build and verify amd64
+
+Install dependencies the way the project already does, and use an ordinary entrypoint;
+Nominal supplies runtime configuration through the environment.
+
+With a `pyproject.toml` and `uv.lock`, build from the lockfile:
+
+```dockerfile
+FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /usr/local/bin/uv
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY extract.py ./
+ENTRYPOINT ["/app/.venv/bin/python", "/app/extract.py"]
+```
+
+With a `requirements.txt`, install from that file instead — `RUN uv pip install --system
+--no-cache -r requirements.txt`, or the project's own pip invocation if it has one — and keep
+the plain `python` entrypoint. With no convention established, propose `uv` and a lockfile.
+Either way the image installs from the project's manifest: a hand-listed `pip install` in the
+Dockerfile is a second, unpinned dependency set that drifts from what the parser was tested
+against. Pin the base image and the `uv` version too; a source SHA over an unpinned base does
+not describe a reproducible release. Include every parser library, since the container
+inherits nothing from the developer's environment.
+
+Three runtime facts constrain the image, and none of them depend on how it was built. Nominal
+runs the container as a fixed non-root user, dropping capabilities, and that user is not
+whatever `USER` the image declares — so nothing may require root at runtime. `$OUTPUT_DIR` is
+writable by that user, and needs no ownership or permission setup in the image. `$HOME`,
+however, is a writable *empty* mount at runtime, and it shadows whatever the build left at
+that path: dependencies installed into the home directory (`pip install --user`, a `~/.local`
+or `~/.venv` layout) are gone when the parser runs, surfacing as `ModuleNotFoundError` for a
+package the image demonstrably contains. Install outside the home directory — `/app/.venv`
+above — and the question does not arise.
+
 
 ```sh
 docker build --platform linux/amd64 -t my-extractor:0.3.0-g1a2b3c4-b42 .
