@@ -173,19 +173,19 @@ a log that stops mid-run is usually the cap, not a hang. A failed run may show a
 attempt.
 
 **2. Classify the failure.** The platform resolves a failed container to a code and message
-from the extractor's termination-log document, else the image's exit-code mapping for that
-status, else a platform fallback (see the
+from the structured error in the termination log, else the image's exit-code mapping for that
+exit status, else a platform fallback (see the
 [contract](contract.md#exit-status-and-structured-errors)). The recorded failure and the
-log's last lines, where the Python runtime prints the structured JSON before the traceback,
+log's last lines, where the Python runtime prints the structured error before the traceback,
 show which applied:
 
 - An extractor-defined code (`MALFORMED_INPUT`, `NO_DATA`, ...) — the code classified the
   failure; its message and the log say why.
 - `UNKNOWN` with "Extractor failed with exit code N" — the container exited non-zero without a
-  valid termination-log document and N has no mapping. Either an unexpected failure (read the
+  valid structured error, and N has no exit-code mapping. Either an unexpected failure (read the
   stack trace) or a reporting gap to close with `@error` or an exit-code mapping.
-  A run killed at the time limit (about 50 minutes) also lands here, or on the mapping for
-  the kill's exit status; look for pathological input or quadratic work.
+  A run killed at the time limit (about 50 minutes) also lands here, or on the exit-code
+  mapping for the kill's exit status; look for pathological input or quadratic work.
 - `EXTRACTOR_OOM_KILLED` — memory exhausted; stream instead of loading whole files.
 - `OUTPUT_UPLOAD_FAILED` — collecting outputs failed after the container exited: usually a
   missing or unparseable `manifest.json`, a listed file that is missing or outside

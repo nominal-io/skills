@@ -1,6 +1,6 @@
 ---
 name: nominal-extractors
-description: Use when building, testing, registering, or debugging Nominal containerized extractors — Docker images, written in any language, that convert proprietary or unsupported files during ingest. Covers the container contract (environment variables, mounted inputs, manifest.json, termination-log errors and exit codes), the Python extractor framework (nominal.experimental.extractor decorators), image registration (register_image, registration_kwargs, nom container), and containerized ingest failures. For ordinary ingestion of formats Nominal already parses, use nominal-ingest instead.
+description: Use when building, testing, registering, or debugging Nominal containerized extractors — Docker images, written in any language, that convert proprietary or unsupported files during ingest. Covers the container contract (environment variables, mounted inputs, manifest.json, structured errors in the termination log, exit codes), the Python extractor framework (nominal.experimental.extractor decorators), image registration (register_image, registration_kwargs, nom container), and containerized ingest failures. For ordinary ingestion of formats Nominal already parses, use nominal-ingest instead.
 ---
 
 # Nominal containerized extractors
@@ -33,8 +33,8 @@ language that runs in a `linux/amd64` image can implement an extractor:
 3. The container parses, writes outputs under `$OUTPUT_DIR` plus a `manifest.json` describing
    each one, and exits.
 4. Exit 0: Nominal uploads and ingests the declared files. Non-zero: the job fails with the
-   error the container wrote to `/dev/termination-log`, else the image's mapping for that exit
-   status.
+   structured error the container wrote to the termination log (`/dev/termination-log`), else
+   the image's exit-code mapping for that exit status.
 
 [Contract](references/contract.md) is the authoritative wire-level description. Explain it in
 these terms when someone is new to extractors, before any SDK detail. Choose the
@@ -42,8 +42,8 @@ implementation path by the parser, not the SDK:
 
 | Path | Use when | Consequence |
 |---|---|---|
-| Python framework (`nominal.experimental.extractor`, `nominal>=1.171`) | The parser is or can be Python | Decorators bind inputs and parameters, write `manifest.json`, report mapped errors, and export registration metadata from one declaration. |
-| Direct contract implementation | Another language, or wrapping an existing binary | The code reads the environment and writes `manifest.json` and termination JSON itself; registration metadata is kept in a checked-in `nom` config or script and tested against the code. |
+| Python framework (`nominal.experimental.extractor`, `nominal>=1.171`) | The parser is or can be Python | Decorators bind inputs and parameters, write `manifest.json`, report structured errors, and export registration metadata from one declaration. |
+| Direct contract implementation | Another language, or wrapping an existing binary | The code reads the environment and writes `manifest.json` and any structured error itself; registration metadata is kept in a checked-in `nom` config or script and tested against the code. |
 
 Everything else runs outside the container, whatever language the extractor uses:
 registration with the `nom` CLI or the Python SDK, scripted ingest with the Python SDK, and
@@ -96,9 +96,10 @@ registration, activation, or successful ingest.
   and the CLI otherwise default to `PARQUET`.
 - Keep environment-variable names identical across code, registration, and callers'
   `sources`/`arguments`; registration never infers them from code in other languages.
-- Report expected failures through the termination log with stable, non-reserved codes and
-  distinct exit statuses; register exit-code mappings as the fallback where the registration
-  path supports them. Never log the container environment; it can carry credentials.
+- Report expected failures as structured errors in the termination log, with stable,
+  non-reserved error codes and distinct exit statuses, and register an exit-code mapping for
+  each status where the registration path supports it. Never log the container environment; it
+  can carry credentials.
 - Build for `linux/amd64` and confirm with
   `docker image inspect <tag> --format '{{.Os}}/{{.Architecture}}'` before registration;
   a READY image does not prove it can run.

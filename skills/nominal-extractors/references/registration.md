@@ -22,7 +22,7 @@ credentials in chat.
 - [Register the contract](#register-the-contract)
   - [Python extractors: generate it from the declarations](#python-extractors-generate-it-from-the-declarations)
   - [Other languages: state the contract explicitly](#other-languages-state-the-contract-explicitly)
-- [Exit-code fallbacks](#exit-code-fallbacks)
+- [Exit-code mappings](#exit-code-mappings)
 - [Identity, discovery and provenance](#identity-discovery-and-provenance)
 
 ## Choose the release identity
@@ -270,8 +270,8 @@ IMAGE_RID=$(nom container extractor register-image -r "$EXTRACTOR_RID" \
   unless `--no-wait` is passed.
 - The config has no exit-code mappings, and `nom container extractor create` sets no labels or
   properties. That is acceptable when every non-zero exit path, including a top-level crash
-  handler, writes the termination log; otherwise register the fallbacks, and any labels, with
-  the SDK script below.
+  handler, writes a structured error; otherwise register exit-code mappings, and any labels,
+  with the SDK script below.
 
 With the SDK, pass the same contract as explicit lists; Python here is only the deployment
 tool:
@@ -308,14 +308,15 @@ image = extractor.register_image(
 )
 ```
 
-## Exit-code fallbacks
+## Exit-code mappings
 
-Exit-code mappings are the image's fallback errors, used when the container exits non-zero
-without a valid termination-log document: a crash before reporting, or a runtime that cannot
-write it. Register one per exit status the code uses, with a non-reserved code, a static
-message and a retry decision matching the [failure policy](modeling.md#outputs-and-failure-policy).
-A valid termination-log document always wins. Mappings live on the image, so changing them
-means registering a new image; inspect the live ones with `image.exit_code_mappings`.
+An exit-code mapping is the error the platform reports for an exit status when the container
+exits non-zero without a valid structured error: a crash before reporting, or a runtime that
+cannot write the termination log. Register one per exit status the code uses, with a
+non-reserved code, a static message and a retry decision matching the [failure
+policy](modeling.md#outputs-and-failure-policy). A valid structured error always takes
+precedence. Mappings live on the image, so changing them means registering a new image; inspect
+the live ones with `image.exit_code_mappings`.
 
 ## Identity, discovery and provenance
 

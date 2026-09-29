@@ -62,7 +62,8 @@ environment, and never echo `_NOMINAL_*` values wholesale into outputs or error 
 ## Exit status and structured errors
 
 Exit `0` means success: the platform uploads and ingests the declared outputs. Any other
-status fails the job. Before a non-zero exit, write one JSON object to `/dev/termination-log`:
+status fails the job. Before a non-zero exit, write a structured error, one JSON object, to the
+termination log, `/dev/termination-log`:
 
 ```json
 {"code": "MALFORMED_INPUT", "message": "Header checksum mismatch at byte 512", "retryable": false, "details": {"byte_offset": "512"}}
@@ -70,26 +71,26 @@ status fails the job. Before a non-zero exit, write one JSON object to `/dev/ter
 
 | Field | Rule |
 |---|---|
-| `code` | Required, non-blank. Use an identifier matching `[A-Z][A-Z0-9_]*`, stable across releases. Without a valid `code` the document is ignored. |
+| `code` | Required, non-blank. Use an identifier matching `[A-Z][A-Z0-9_]*`, stable across releases. Without a valid `code` the platform ignores the structured error. |
 | `message` | Shown with the failure; a blank message becomes a generic one. Keep it free of secrets and bulk data. |
 | `retryable` | Boolean, default `false`. `true` only when retrying the same input could succeed. |
 | `details` | Optional flat object of string, number or boolean values; nested values are dropped. |
 
-Write only the JSON document and keep it within 4,096 bytes (the Kubernetes termination
+Write only the JSON object and keep it within 4,096 bytes (the Kubernetes termination
 message limit), truncating the message rather than the JSON. The platform resolves a failed
 container's error in this order:
 
-1. a valid termination-log document;
-2. the image's registered exit-code mapping for the exit status (see
-   [registration](registration.md#exit-code-fallbacks)), which matters only when step 1 is
-   missing: a crash before reporting, or a failed write;
+1. a valid structured error in the termination log;
+2. the image's exit-code mapping for the exit status (see
+   [registration](registration.md#exit-code-mappings)), which matters only when there is no
+   structured error: a crash before reporting, or a failed write;
 3. a platform fallback: `EXTRACTOR_OOM_KILLED` for an out-of-memory kill, otherwise `UNKNOWN`
    with a generic message naming the exit status.
 
-Also print the same JSON to stderr so it appears in the job log. Treat the termination log as
-best-effort: if writing it fails, still print the error and exit with the mapped status, so the
-registered fallback applies. Give each failure class its own exit status from 1 through 255,
-avoiding 126, 127 and 128 or higher, which shells and signals already use; the
+Also print the structured error to stderr so it appears in the job log. Treat writing the
+termination log as best-effort: if it fails, still print the error and exit with the failure's
+exit status, so its exit-code mapping applies. Give each failure class its own exit status from
+1 through 255, avoiding 126, 127 and 128 or higher, which shells and signals already use; the
 [failure policy](modeling.md#outputs-and-failure-policy) suggests a convention. Unexpected
 failures may exit 1 with a stack trace on stderr.
 
@@ -317,7 +318,7 @@ On success, check that `out/manifest.json` parses, uses only the field names abo
 files that exist with extensions matching their `ingestType`, and does not list itself. Then
 decode the outputs and check values, units and timestamps as in
 [authoring](authoring.md#test-what-the-data-means). On failure, check that the exit status is
-the one registered for that failure class and that `termination.log` holds a single JSON
-document under 4,096 bytes whose `code` is not platform-reserved. Rerun without the
+the one registered for that failure class and that `termination.log` holds a single structured
+error under 4,096 bytes whose `code` is not platform-reserved. Rerun without the
 `_NOMINAL_*` variables and again with representative ones, since the platform may or may not
 inject them.

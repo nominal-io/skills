@@ -14,7 +14,7 @@ dependency either way; the contract only governs the boundary with the ingest pi
   - [Job metadata](#job-metadata)
   - [Declare outputs (manifest mode)](#declare-outputs-manifest-mode)
   - [Single-file mode (legacy)](#single-file-mode-legacy)
-  - [Structured failures](#structured-failures)
+  - [Expected failures](#expected-failures)
   - [Error semantics](#error-semantics)
   - [Migrating context lookups](#migrating-context-lookups)
 - [Other languages: implement the contract directly](#other-languages-implement-the-contract-directly)
@@ -27,7 +27,7 @@ dependency either way; the contract only governs the boundary with the ingest pi
 2. Parse, streaming where inputs are large; memory is limited.
 3. Write outputs under `$OUTPUT_DIR` and scratch files under `$HOME`.
 4. Declare each output once it is complete; in manifest mode `manifest.json` comes last.
-5. Map each expected failure class to a stable code and exit status, and let unexpected
+5. Map each expected failure class to a stable error code and exit status, and let unexpected
    failures surface as a generic failure with a stack trace on stderr.
 6. Log aggregate accepted, filtered and rejected counts with reasons, not rows: the log
    capture keeps only the first 1 MiB per attempt, so per-row logging pushes the traceback
@@ -198,23 +198,23 @@ raises and producing no output fails the run. There are no per-output timestamp,
 channel-prefix or unit controls. `output_format` is needed to export registration metadata
 and is checked against the registered format at runtime.
 
-### Structured failures
+### Expected failures
 
 `@extractor.error(ExceptionType, code=..., exit_code=..., message=..., retryable=False)`
 declares an expected failure. It covers startup, binding, extraction and finalization; the
-nearest mapped class in the exception's method resolution order wins, and each class may be
-declared once. On a match, `run()` writes `{"code", "message", "retryable"}` to
-`/dev/termination-log` and stderr, with `message` taken from `str(exception)` and shortened to
-fit 4,096 bytes, prints the traceback, and exits with `exit_code`. Unmapped failures print the
+nearest declared class in the exception's method resolution order wins, and each class may be
+declared once. On a match, `run()` writes a structured error (`code`, `message`, `retryable`)
+to the termination log and stderr, with `message` taken from `str(exception)` and shortened to
+fit 4,096 bytes, prints the traceback, and exits with `exit_code`. Undeclared failures print the
 traceback and exit 1.
 
-- `message=` is static fallback text. It becomes the image's registered exit-code mapping and
-  is required for `registration_kwargs()`, but does not replace the runtime message.
+- `message=` is static text for the image's exit-code mapping. It is required for
+  `registration_kwargs()`, but the structured error still carries `str(exception)`.
 - Map `ExtractorError` to its own configuration or contract code, separate from data errors,
   so a deployment fault never reports as bad input. Raise specific application exceptions for
   input problems so programming errors are not mislabeled.
 - Codes must match `[A-Z][A-Z0-9_]*` and avoid the platform-reserved set; conflicting
-  fallbacks for one exit code are rejected at export.
+  mappings for one exit code are rejected at export.
 - Exception messages reach users through the job failure. Keep secrets and bulk raw values
   out of them.
 
@@ -237,7 +237,8 @@ result for each.
 
 To trace the framework itself, configure logging before `run()` and raise
 `logging.getLogger("nominal.experimental.extractor")` to `DEBUG`. It logs context sources,
-binding (names, never parameter values), finalization and error mapping.
+binding (names, never parameter values), finalization, and which `@error` declaration matched
+a failure.
 
 ### Migrating context lookups
 
@@ -273,19 +274,20 @@ for each output produced by the parser:
 write output_dir/manifest.json with a JSON encoder; exit 0
 
 on an expected failure (code, exit_status, message):
-    payload = {"code", "message", "retryable"} as JSON, <= 4096 bytes
-    best-effort write payload to /dev/termination-log; print payload to stderr; exit exit_status
+    error = {"code", "message", "retryable"} as JSON, <= 4096 bytes
+    best-effort write error to /dev/termination-log; print error to stderr; exit exit_status
 on anything else: print the stack trace to stderr; exit 1
 ```
 
-- Build `manifest.json` and termination payloads with a JSON library, never string
+- Build `manifest.json` and structured errors with a JSON library, never string
   templates: paths and messages need escaping.
 - Keep epoch nanoseconds in 64-bit integers end to end. A `float64` cannot hold present-day
   epoch nanoseconds exactly, and it is the only number type in JavaScript and the default in
   many JSON libraries; use `BigInt`/`int64`, or emit relative offsets or a coarser unit that
   fits.
-- Make the termination-log path injectable by the test harness, as a function argument rather
-  than an environment variable, so tests can capture the payload without `/dev`.
+- Make the termination log's path injectable by the test harness, as a function argument
+  rather than an environment variable, so tests can capture the structured error without
+  `/dev`.
 - Keep environment-variable names, error codes and exit statuses as constants in one module,
   and test them against the checked-in registration config (see
   [registration](registration.md)); the Python framework derives both from one declaration,
@@ -332,15 +334,15 @@ manifest = ctx.build_manifest()   # the manifest document exactly as written
 - **`env` replaces the environment rather than merging**: it must carry `OUTPUT_DIR` (an
   existing directory), every required input and every required parameter. Omitted optional
   parameters use their decorator defaults.
-- `exit=False` returns the context on success and re-raises the original exception on
-  failure, without termination reporting. To test mapped exits, run with the default `exit=True`
-  and `termination_log_path=tmp_path / "termination.log"`, and assert on `SystemExit.code` and
-  the file's JSON.
+- `exit=False` returns the context on success and re-raises the original exception on failure,
+  without writing a structured error. To test declared failures, run with the default
+  `exit=True` and `termination_log_path=tmp_path / "termination.log"`, and assert on
+  `SystemExit.code` and the file's JSON.
 - To exercise registered-contract behavior, inject what Nominal would:
   `_NOMINAL_OUTPUT_FORMAT="MANIFEST"`, plus `_NOMINAL_INPUTS` and `_NOMINAL_PARAMETERS` in the
   shapes shown in the [contract](contract.md#metadata-variables).
-- A direct `convert(ctx)` call binds arguments but neither finalizes outputs nor reports mapped
-  failures; prefer `run(env=..., exit=False)`.
+- A direct `convert(ctx)` call binds arguments but neither finalizes outputs nor writes
+  structured errors; prefer `run(env=..., exit=False)`.
 
 In other languages, unit-test the pure parsing functions natively, assert the exact emitted
-`manifest.json` and termination payloads against golden files, and cover each exit status.
+`manifest.json` and structured errors against golden files, and cover each exit status.
