@@ -13,6 +13,18 @@ in the existing README. Deployment inputs follow the project's existing conventi
 environment variables below are illustrative. Do not add a local state registry or ask for
 credentials in chat.
 
+## Contents
+
+- [Choose the release identity](#choose-the-release-identity)
+- [Write the Dockerfile](#write-the-dockerfile)
+  - [Choose the base image](#choose-the-base-image)
+- [Build and verify amd64](#build-and-verify-amd64)
+- [Register the contract](#register-the-contract)
+  - [Python extractors: generate it from the declarations](#python-extractors-generate-it-from-the-declarations)
+  - [Other languages: state the contract explicitly](#other-languages-state-the-contract-explicitly)
+- [Exit-code fallbacks](#exit-code-fallbacks)
+- [Identity, discovery and provenance](#identity-discovery-and-provenance)
+
 ## Choose the release identity
 
 These are three different uses of “tag”:

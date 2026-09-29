@@ -5,6 +5,21 @@ SDK: the Python framework when the parser is or can be Python, and a direct impl
 anything else, including a wrapper around an existing binary. Format I/O is the project's own
 dependency either way; the contract only governs the boundary with the ingest pipeline.
 
+## Contents
+
+- [Shape every entrypoint the same way](#shape-every-entrypoint-the-same-way)
+- [Python: the extractor framework](#python-the-extractor-framework)
+  - [Declare the entrypoint](#declare-the-entrypoint)
+  - [Inputs and parameters](#inputs-and-parameters)
+  - [Job metadata](#job-metadata)
+  - [Declare outputs (manifest mode)](#declare-outputs-manifest-mode)
+  - [Single-file mode (legacy)](#single-file-mode-legacy)
+  - [Structured failures](#structured-failures)
+  - [Error semantics](#error-semantics)
+  - [Migrating context lookups](#migrating-context-lookups)
+- [Other languages: implement the contract directly](#other-languages-implement-the-contract-directly)
+- [Test what the data means](#test-what-the-data-means)
+
 ## Shape every entrypoint the same way
 
 1. Resolve and validate every input and parameter before expensive work: required values

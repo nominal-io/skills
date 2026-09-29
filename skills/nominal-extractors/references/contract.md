@@ -11,6 +11,21 @@ passed on the command line, and the container never calls back to Nominal. The e
 normally runs once; after a failure the platform may start one more attempt with fresh
 volumes, so never depend on state left by an earlier attempt.
 
+## Contents
+
+- [Runtime environment](#runtime-environment)
+  - [Metadata variables](#metadata-variables)
+- [Exit status and structured errors](#exit-status-and-structured-errors)
+- [Output modes](#output-modes)
+- [manifest.json](#manifestjson)
+  - [Output entries (`outputs`)](#output-entries-outputs)
+  - [Video entries (`videoOutputs`)](#video-entries-videooutputs)
+  - [Deployment differences](#deployment-differences)
+- [Output file formats](#output-file-formats)
+  - [Avro stream](#avro-stream)
+- [Timestamp metadata precedence](#timestamp-metadata-precedence)
+- [Check conformance locally](#check-conformance-locally)
+
 ## Runtime environment
 
 | Aspect | Contract |
