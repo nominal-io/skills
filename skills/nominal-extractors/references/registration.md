@@ -30,7 +30,68 @@ prove reproducibility: base images, dependencies and build inputs can change. Do
 movable `latest`/`prod` aliases as immutable registration versions or append random suffixes
 to make retries pass.
 
-## Choose the base image
+## Write the Dockerfile
+
+These rules hold in every language:
+
+- Use an ordinary entrypoint with an absolute path; Nominal supplies configuration through the
+  environment, not arguments.
+- Install dependencies from the project's own manifest and lockfile (`uv.lock`,
+  `requirements.txt`, `package-lock.json`, `go.sum`, `Cargo.lock`, ...). A hand-listed install
+  in the Dockerfile is a second, unpinned dependency set that drifts from what the parser was
+  tested against. With no convention established for Python, propose `uv` and a lockfile.
+- Pin the base image and tool versions; a source SHA over an unpinned base does not describe a
+  reproducible release. Include every parser library, since the container inherits nothing from
+  the developer's environment.
+- Install everything outside `/home` and ship files readable by any UID. The platform's
+  [runtime environment](contract.md#runtime-environment) runs a different non-root user and
+  mounts an empty `/home`, so dependencies under the home directory (`pip install --user`,
+  `~/.local`, `~/.venv`, a toolchain cache) vanish at runtime, surfacing as
+  `ModuleNotFoundError` or a missing library the image demonstrably contains. `$OUTPUT_DIR`
+  needs no ownership or permission setup.
+- Minimal bases may lack a shell, CA certificates or timezone data; include what the parser
+  needs, such as tzdata when converting local times.
+
+For Python with a `pyproject.toml` and `uv.lock`:
+
+```dockerfile
+FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /usr/local/bin/uv
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY extract.py ./
+ENTRYPOINT ["/app/.venv/bin/python", "/app/extract.py"]
+```
+
+With a `requirements.txt`, install from that file instead — `RUN uv pip install --system
+--no-cache -r requirements.txt`, or the project's own pip invocation — and keep the plain
+`python` entrypoint. Other interpreted runtimes such as Node, Ruby or the JVM follow the same
+pattern: install from the lockfile in a build stage, copy the app and its dependencies into the
+runtime image, and give an absolute entrypoint for the runtime binary.
+
+A compiled parser needs only its binary and the libraries it links. Build in the toolchain
+image, then copy into a minimal runtime that matches the linkage: a static binary into a
+static base, a glibc-linked one into a glibc base such as Debian slim or Chainguard's
+`glibc-dynamic`. For example, with Go:
+
+```dockerfile
+FROM golang:1.23-bookworm@sha256:<digest> AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/extract ./cmd/extract
+
+FROM chainguard/static:latest@sha256:<digest>
+COPY --from=build /out/extract /usr/local/bin/extract
+ENTRYPOINT ["/usr/local/bin/extract"]
+```
+
+Rust, C++ and others follow the same shape: `cargo build --locked --release` or the project's
+build, with a pinned toolchain and the lockfile honored.
+
+### Choose the base image
 
 Reuse the base image the project already builds on. If nothing is established and CVE posture
 matters to the project or its operators, raise
@@ -39,8 +100,9 @@ are low-to-zero-CVE drop-ins for the common language runtimes, and swapping the 
 release costs a new image version and another registration. Take the answer as settled; do
 not re-ask per build.
 
-Their runtime images are distroless — no shell, no package manager — so install in the
-`-dev` variant and copy the result across:
+Their runtime images are distroless — no shell, no package manager, and their own entrypoint,
+working directory and user, which `docker image inspect` shows — so install in the `-dev`
+variant and copy the result across:
 
 ```dockerfile
 FROM chainguard/python:latest-dev@sha256:<digest> AS build
@@ -65,69 +127,7 @@ and `latest-dev`, no version tags, so pin by digest — and pin both stages to t
 release, or the venv's interpreter symlink and `site-packages` disagree with the runtime's
 Python. `docker buildx imagetools inspect <image>:<tag>` prints the digest to pin.
 
-A compiled parser needs only its binary and the libraries it links. Build in the toolchain
-image, then copy into a minimal runtime that matches the linkage: a static binary into a
-static base, a glibc-linked one into a glibc base such as Debian slim or Chainguard's
-`glibc-dynamic`. For example, with Go:
-
-```dockerfile
-FROM golang:1.23-bookworm@sha256:<digest> AS build
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/extract ./cmd/extract
-
-FROM chainguard/static:latest@sha256:<digest>
-COPY --from=build /out/extract /usr/local/bin/extract
-ENTRYPOINT ["/usr/local/bin/extract"]
-```
-
-Rust, C++ and others follow the same shape: `cargo build --locked --release` or the project's
-build, pinned toolchain, lockfile honored. Interpreted runtimes such as Node, Ruby or the JVM
-follow the Python pattern instead: install from the lockfile in a build stage, outside
-`$HOME`, copy the app and its dependencies into the runtime image, and give an absolute
-entrypoint for the runtime binary. Distroless images set their own entrypoint, working
-directory and user; read them with `docker image inspect` rather than assuming. Minimal bases may lack a shell, CA certificates or
-timezone data; include what the parser needs, such as tzdata when converting local times.
-
 ## Build and verify amd64
-
-Install dependencies the way the project already does, and use an ordinary entrypoint;
-Nominal supplies runtime configuration through the environment, not arguments.
-
-With a Python `pyproject.toml` and `uv.lock`, build from the lockfile:
-
-```dockerfile
-FROM python:3.12-slim
-COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /usr/local/bin/uv
-WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-COPY extract.py ./
-ENTRYPOINT ["/app/.venv/bin/python", "/app/extract.py"]
-```
-
-With a `requirements.txt`, install from that file instead — `RUN uv pip install --system
---no-cache -r requirements.txt`, or the project's own pip invocation if it has one — and keep
-the plain `python` entrypoint. With no convention established, propose `uv` and a lockfile.
-Either way the image installs from the project's manifest: a hand-listed `pip install` in the
-Dockerfile is a second, unpinned dependency set that drifts from what the parser was tested
-against. The same holds in every language: build from the lockfile (`go.sum`, `Cargo.lock`,
-...). Pin the base image and tool versions too; a source SHA over an unpinned base does not
-describe a reproducible release. Include every parser library, since the container inherits
-nothing from the developer's environment.
-
-Three runtime facts constrain the image, and none of them depend on how it was built. Nominal
-runs the container as a fixed non-root user, dropping capabilities, and that user is not
-whatever `USER` the image declares — so nothing may require root at runtime, and shipped files
-must be readable by any UID. `$OUTPUT_DIR` is writable by that user, and needs no ownership or
-permission setup in the image. `$HOME`, however, is a writable *empty* mount at runtime, and it
-shadows whatever the build left at that path: dependencies installed into the home directory
-(`pip install --user`, a `~/.local` or `~/.venv` layout, a toolchain cache) are gone when the
-parser runs, surfacing as `ModuleNotFoundError` or a missing library for something the image
-demonstrably contains. Install outside the home directory — `/app/.venv` or `/usr/local/bin`
-above — and the question does not arise.
 
 ```sh
 docker build --platform linux/amd64 -t my-extractor:0.3.0-g1a2b3c4-b42 .
@@ -148,8 +148,8 @@ already claimed success. Save one amd64 image; Nominal receives an archive, not 
 can negotiate a platform with, so do not assume it selects amd64 out of a multi-platform
 archive. Docker Desktop's containerd image store may write an OCI index even for a
 one-platform build; `docker image ls --tree` shows whether anything besides linux/amd64 (and
-build attestations) is in it. Run the [conformance check](contract.md#check-conformance-locally) on the built
-image before registering it.
+build attestations) is in it. Run the [conformance check](contract.md#check-conformance-locally)
+on the built image before registering it.
 
 To check an archive built somewhere else — a CI artifact, or a tarball handed to you — load
 it and inspect the tag `docker load` reports:

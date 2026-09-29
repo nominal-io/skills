@@ -73,10 +73,9 @@ container's error in this order:
 
 Also print the same JSON to stderr so it appears in the job log. Treat the termination log as
 best-effort: if writing it fails, still print the error and exit with the mapped status, so the
-registered fallback applies. Give each failure class
-its own exit status from 1 through 255, avoiding 126, 127 and 128 or higher, which shells and
-signals already use. One convention borrows `sysexits`: 64 for malformed input, 65 for input
-that decodes but holds no usable data, 78 for configuration or contract errors. Unexpected
+registered fallback applies. Give each failure class its own exit status from 1 through 255,
+avoiding 126, 127 and 128 or higher, which shells and signals already use; the
+[failure policy](modeling.md#outputs-and-failure-policy) suggests a convention. Unexpected
 failures may exit 1 with a stack trace on stderr.
 
 The platform owns `IMAGE_PULL_FAILED`, `EXTRACTOR_TIMEOUT`, `EXTRACTOR_UNSCHEDULABLE`,
@@ -174,7 +173,7 @@ explicitly, as the Python runtime does, is the conservative choice; do not add o
 | `relativePath` | Path under `$OUTPUT_DIR` with forward slashes; subdirectories are allowed, absolute paths and `..` are not. The same file may appear in several entries, e.g. one table ingested under two timestamp columns. |
 | `tagColumns` | `TABULAR` only: tag name to the column carrying its values. That column becomes the tag and is not also ingested as a channel. |
 | `channelPrefix` | `TABULAR` and `AVRO_STREAM`: string prepended to every channel name from this file, or `null`. |
-| `units` | Channel name to unit symbol. Keys are final channel names, after `channelPrefix` is applied; symbols pass through unchanged. Check the resulting channel units after a representative ingest; see [deployment differences](#deployment-differences). |
+| `units` | Channel name to unit symbol. Keys are final channel names, after `channelPrefix` is applied; symbols pass through unchanged. Check the resulting channel units after a representative ingest. |
 | `timestampMetadata` | `null` to inherit the job-level metadata, or a numeric description of this file's timestamps (below). |
 
 `timestampMetadata` describes numeric timestamps only:
@@ -182,7 +181,7 @@ explicitly, as the Python runtime does, is the conservative choice; do not add o
 - `seriesName`: the timestamp column (`TABULAR`) or top-level field (`JSON_L`). For
   `AVRO_STREAM` it is always `timestamps`, the schema's field.
 - `epochTimeUnit`: `SECONDS`, `MILLISECONDS`, `MICROSECONDS` or `NANOSECONDS`, matching the
-  stored numbers. The wrong unit misplaces every sample by a factor of 1,000.
+  stored numbers.
 - `relativeOffset`: `null` for absolute Unix-epoch numbers, or an ISO 8601 UTC instant that the
   numbers count from. It applies to every ingest type that takes `timestampMetadata`. The Python
   runtime writes nine fractional digits, as in `2026-09-01T12:00:00.000000000Z`; matching that
@@ -273,17 +272,16 @@ The platform resolves levels 2 and 3 before the container starts and fails the j
 absent, even when the manifest describes every output. SDK and CLI registration require a
 default; images from older registration paths may lack one and then need an override on every
 ingest. The resolved value is what `_NOMINAL_TIMESTAMP_METADATA` carries. An Avro output that
-inherits must inherit a numeric type, because its timestamps are integers. Never register a
-relative default with a fixed start: every future upload would inherit that start. Supply a
-capture's start per output or per ingest instead.
+inherits must inherit a numeric type, because its timestamps are integers. The image default
+applies to every future ingest, so it cannot carry a capture-specific start; see
+[modeling](modeling.md#timestamps-choose-from-evidence) for where starts belong.
 
 ## Check conformance locally
 
 Run the built image the way the platform does: amd64, an arbitrary non-root UID, an empty
 writable `/home` as `$HOME` (hiding anything the image put there), read-only inputs, and a
-file standing in for the termination log. On Linux
-hosts, make `out/` and `termination.log` writable by that UID first (for example,
-`chmod 777 out` and `chmod 666 termination.log`).
+file standing in for the termination log. On Linux hosts, make `out/` and `termination.log`
+writable by that UID first (for example, `chmod 777 out` and `chmod 666 termination.log`).
 
 ```sh
 mkdir -p out && : > termination.log

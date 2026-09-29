@@ -45,8 +45,7 @@ the [contract](contract.md#output-modes) for what each mode allows.
 
 Identify measurement channels and their units, conversions, prefixes and numeric precision.
 Declare units per output in the manifest, preserving the source's symbols unless a conversion
-is agreed, and confirm the target deployment applies them (see
-[deployment differences](contract.md#deployment-differences)). Do not silently change a channel's physical meaning.
+is agreed. Do not silently change a channel's physical meaning.
 
 Agree whether legitimately empty input, all-filtered input, malformed records and missing
 required fields fail the job or produce an explicitly accepted empty or partial result.
@@ -98,18 +97,17 @@ per-output metadata outranks the ingest request:
 
 | Start source | Put it in | Correcting a wrong start |
 |---|---|---|
-| The file, trustworthy | That output's manifest metadata | Re-run with a start-override parameter, if one exists; a request override cannot reach it. |
-| The file, but sometimes wrong | Manifest metadata, plus an optional ISO 8601 start parameter the extractor prefers when supplied | Re-run with the parameter set. |
-| Only the uploader knows it | Omit per-output metadata and use the ingest request's timestamp override | Re-ingest with a corrected override; costs per-upload work and applies to every output. |
+| The file | That output's manifest metadata. If the header can be wrong, add an optional ISO 8601 start parameter that the extractor prefers when supplied. | Re-run with the start parameter; a request override cannot reach per-output metadata. |
+| Only the uploader | No per-output metadata; the ingest request's timestamp override | Re-ingest with a corrected override. This costs per-upload work and applies to every output. |
 
 Never put a fixed per-capture start in the image default: every future upload would inherit
 the same start. Registration still requires a default even when every output declares its own
 metadata; it then only reaches outputs that omit theirs and is what `_NOMINAL_TIMESTAMP_METADATA`
 reports. Choose the absolute type and column that most outputs use, or would use if they
-omitted per-output metadata. Use the unit the data has: declaring
-milliseconds for microsecond data misplaces every sample by a factor of 1,000. See the
-authoritative [timestamp metadata precedence](contract.md#timestamp-metadata-precedence) for
-supported types and the distinction between local runs and platform requirements.
+omitted per-output metadata. Use the unit the data has: declaring milliseconds for microsecond
+data misplaces every sample by a factor of 1,000. See the authoritative
+[timestamp metadata precedence](contract.md#timestamp-metadata-precedence) for supported types
+and the distinction between local runs and platform requirements.
 
 ## Tags: start from intended comparisons
 

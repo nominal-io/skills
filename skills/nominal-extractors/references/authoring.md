@@ -134,8 +134,8 @@ ctx.job_timestamp_metadata  # TimestampMetadata | None: what outputs without the
 ### Declare outputs (manifest mode)
 
 Write each file beneath `ctx.output_dir`, then declare it with the method for its format. Each
-call maps one-to-one to a `manifest.json` entry described in the
-[contract](contract.md#manifestjson), and checks the file's extension immediately.
+call becomes one `manifest.json` entry, so the [contract](contract.md#manifestjson) is the
+reference for what the options mean; the table shows where each lands.
 
 ```python
 ctx.add_tabular(
@@ -153,25 +153,26 @@ ctx.add_video(video_path, channel="camera/front", start=capture_start)
 
 (`ts` is `from nominal import ts`.)
 
-- **`add_tabular`**: columns become channels. `timestamp_column` and `timestamp_type` go
-  together; the overloads make a half-pair a type error.
-- **`add_avro_stream`**: records carry their own channel, values and tags, so there are no tag
-  columns or timestamp column. `timestamp_type` says how to read the schema's `timestamps`
-  field; omitting it inherits the job-level metadata, which is correct only when that is
-  numeric. `nominal_streaming.NominalDatasetStream().to_file(path)` writes the schema with
-  epoch-nanosecond timestamps.
-- **`add_journal_json`**: each line needs `MESSAGE` and a timestamp field. It takes neither tag
-  columns nor a channel prefix.
-- **`add_video`**: exactly one of `start` (an absolute start applied to the video's own
-  presentation timestamps, correctable with at most one of `ending_timestamp`,
-  `true_frame_rate` or `scale_factor`) or `frame_timestamps` (one absolute nanosecond per frame;
-  the runtime writes and declares the sidecar). Timestamps accept a `datetime`, an ISO 8601
-  string or integer nanoseconds.
-- Prefixes, units, videos and Avro timestamp types depend on the deployment's ingest route;
-  see [deployment differences](contract.md#deployment-differences).
-- Declaring one file twice creates two entries, e.g. one table under two timestamp columns.
-  At least one declaration is required, undeclared files draw a warning and are not ingested,
-  and `manifest.json` is reserved for the runtime.
+| Method | Manifest entry | Arguments |
+|---|---|---|
+| `add_tabular` | `TABULAR` output | `tag_columns`, `channel_prefix`, `units`, and `timestamp_column` with `timestamp_type` |
+| `add_avro_stream` | `AVRO_STREAM` output | `channel_prefix`, `units`, `timestamp_type` (the column is always `timestamps`) |
+| `add_journal_json` | `JSON_L` output | `timestamp_column` with `timestamp_type` |
+| `add_video` | `videoOutputs` entry | `channel`, and exactly one of `start` (optionally with one of `ending_timestamp`, `true_frame_rate`, `scale_factor`) or `frame_timestamps` |
+
+What the SDK adds on top of the manifest:
+
+- Each method checks the file's location and extension when called, so a mismatch fails at
+  the call rather than after upload.
+- Timestamp column and type go together; the overloads make a half-pair a type error. Types
+  accept `ts.Epoch`, `ts.Relative` or an epoch string alias such as `"epoch_nanoseconds"`.
+- `frame_timestamps` takes integer nanoseconds and the runtime writes and declares the sidecar;
+  `start` and the other video times accept a `datetime`, an ISO 8601 string or integer
+  nanoseconds.
+- After the callback returns, the runtime requires at least one declaration, warns about
+  undeclared files, and writes `manifest.json`, a name it reserves.
+- `nominal_streaming.NominalDatasetStream().to_file(path)` writes Avro stream files for
+  `add_avro_stream`.
 
 ### Single-file mode (legacy)
 
@@ -287,7 +288,7 @@ on anything else: print the stack trace to stderr; exit 1
 - **Video**: remux or encode with a standard tool such as ffmpeg, keeping the camera's timing,
   and declare a start or a per-frame sidecar.
 - A static or distroless runtime image may lack a shell, CA certificates or timezone data;
-  confirm what the parser needs (see [registration](registration.md#choose-the-base-image)).
+  confirm what the parser needs (see [registration](registration.md#write-the-dockerfile)).
 
 ## Test what the data means
 

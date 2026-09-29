@@ -176,7 +176,7 @@ entrypoint:
 - *`ModuleNotFoundError`* or a missing shared library — a dependency is missing from the
   image; nothing carries over from your dev machine. It can also mean the dependency *is* in
   the image but was installed under `$HOME`, which the runtime mounts empty over: see
-  [registration](registration.md#build-and-verify-amd64).
+  [registration](registration.md#write-the-dockerfile).
 - *permission denied* reading a shipped file or writing outside `$OUTPUT_DIR`/`$HOME` — the
   image assumed its own `USER` or root; the platform runs a different non-root UID.
 - *ingestion fails before the container ran, complaining about timestamp metadata* — the image
