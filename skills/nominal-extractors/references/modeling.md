@@ -23,11 +23,11 @@ suffix; validate structure in the parser.
 Require values whose absence cannot safely be inferred. A missing required input is rejected
 before the run (by `add_containerized` before upload, and by the platform). A missing required
 parameter is not: the container still starts, the Python framework then fails binding before
-the callback runs, and a direct implementation must check it itself. An agreed default makes the parameter optional and
-reduces uploader work but can hide an accidental omission, so the default must be
-intentional. Registration does not record parameter types or defaults, so state accepted
-values, units and the default in the parameter description. Empty strings are values and need
-explicit validation where invalid.
+the callback runs, and a direct implementation must check it itself. An agreed default makes
+the parameter optional and reduces uploader work but can hide an accidental omission, so the
+default must be intentional. Registration does not record parameter types or defaults, so
+state accepted values, units and the default in the parameter description. Empty strings are
+values and need explicit validation where invalid.
 
 Preserve existing environment-variable names, output mode, channel names and units, timestamp
 meaning, tag vocabulary and error codes unless the change is agreed. Registered display names

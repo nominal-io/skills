@@ -164,8 +164,17 @@ is needed.
 
 ## Register the contract
 
-Both paths below assume an existing extractor and a configured Nominal profile. Importing
-either script performs no platform mutations.
+Every path below assumes an existing extractor and a configured Nominal profile, and importing
+its script performs no platform mutations. The same rules hold on all of them:
+
+- **Output format defaults to `PARQUET`** unless given; register `MANIFEST` for new work. Only
+  `MANIFEST`, `PARQUET`, `CSV` and `AVRO_STREAM` can be registered. A mismatch with the code
+  fails at startup when the code checks `_NOMINAL_OUTPUT_FORMAT`, and otherwise at ingest.
+- Input and parameter environment-variable names must be distinct across both lists and match
+  the code and callers' `sources`/`arguments`.
+- Timestamp defaults are required; see the
+  [timestamp metadata precedence](contract.md#timestamp-metadata-precedence) for types and
+  where capture-specific starts belong.
 
 ### Python extractors: generate it from the declarations
 
@@ -235,16 +244,22 @@ IMAGE_RID=$(nom container extractor register-image -r "$EXTRACTOR_RID" \
     -f my-extractor-0.3.0-g1a2b3c4-b42.tar -t 0.3.0-g1a2b3c4-b42 -c extractor-config.json)
 ```
 
-`validate-config` is local and needs no credentials, so run it in CI. Flags override the
-config and unknown keys are rejected, but it does not check reserved variable names or suffix
-form: write suffixes without a leading dot (`bin`, `csv.gz`), as file-extension search expects,
-and keep clear of the [reserved names](contract.md#metadata-variables). `default_timestamp_type` accepts `iso_8601` and the
-`epoch_*` units; registration prints the image RID on stdout, status on stderr, and waits for
-READY unless `--no-wait` is passed. The config has no exit-code mappings, and
-`nom container extractor create` sets no labels or properties. That is acceptable when every
-non-zero exit path, including a top-level crash handler, writes the termination log; otherwise
-register the fallbacks, and any labels, with an SDK script. `nom` installs as an ordinary tool (`uv tool install nominal` or
-`pipx install nominal`) and needs no Python knowledge to run.
+- `nom` installs as an ordinary tool (`uv tool install nominal` or `pipx install nominal`) and
+  needs no Python knowledge to run.
+- `validate-config` is local and needs no credentials, so run it in CI, together with a test in
+  the extractor's language that reads the checked-in config and compares it with the code's
+  constants.
+- Flags override the config and unknown keys are rejected, but reserved variable names and
+  suffix form go unchecked: write suffixes without a leading dot (`bin`, `csv.gz`), as
+  file-extension search expects, and keep clear of the
+  [reserved names](contract.md#metadata-variables).
+- `default_timestamp_type` accepts `iso_8601` and the `epoch_*` units.
+- `register-image` prints the image RID on stdout and status on stderr, and waits for READY
+  unless `--no-wait` is passed.
+- The config has no exit-code mappings, and `nom container extractor create` sets no labels or
+  properties. That is acceptable when every non-zero exit path, including a top-level crash
+  handler, writes the termination log; otherwise register the fallbacks, and any labels, with
+  the SDK script below.
 
 With the SDK, pass the same contract as explicit lists; Python here is only the deployment
 tool:
@@ -281,16 +296,6 @@ image = extractor.register_image(
 )
 ```
 
-**Registration defaults to `PARQUET`** on both paths unless `output_format` is given; pass
-`MANIFEST` explicitly. Only `MANIFEST`, `PARQUET`, `CSV` and `AVRO_STREAM` can be registered.
-A mismatch with the code fails at startup when the code checks `_NOMINAL_OUTPUT_FORMAT`, and
-otherwise at ingest. Input and parameter environment-variable names must be distinct across
-both lists and match parser lookups and callers' `sources`/`arguments`; add a test in the
-extractor's language that reads the checked-in config and compares it with the code's
-constants. Timestamp defaults are required; see the
-[timestamp metadata precedence](contract.md#timestamp-metadata-precedence) for types and
-capture-specific starts.
-
 ## Exit-code fallbacks
 
 Exit-code mappings are the image's fallback errors, used when the container exits non-zero
@@ -321,44 +326,3 @@ If registration raises `NominalAlreadyExistsError`, query
 Reuse it only when release evidence establishes the same artifact and contract; a matching
 source revision or version string is insufficient. Otherwise choose a deliberate new release
 identity. Do not delete/recreate the old version or blindly retry with random suffixes.
-
-## Activate within the authorized scope
-
-Registration attaches an image; it does not activate it. Before activation, fetch the live
-target extractor, inspect its active image and contract, and identify the prior image RID for
-rollback. Confirm the intended environment and the scope already authorized; registration
-alone is not evidence of authorization to switch a production extractor.
-
-```python
-extractor = client.get_containerized_extractor(extractor_rid)
-prior_image = extractor.active_image
-image = client.get_container_image(image_rid)
-extractor = extractor.set_active_image(image)
-assert client.get_containerized_extractor(extractor_rid).active_image.rid == image.rid
-```
-
-With the CLI: `nom container extractor set-active-image -r "$EXTRACTOR_RID" -i "$IMAGE_RID"`.
-`set_active_image` waits for READY first; `poll_until_ready=False` (CLI `--no-wait`) raises if
-the image is not ready. Future ingests use the new image; in-flight jobs finish on their
-starting image. Rollback means reactivating the known prior image, then verifying live state.
-It changes future jobs and does not repair data already ingested. A canary requires a real test
-extractor or environment with the candidate active; ingestion has no arbitrary image override.
-
-Contract changes require both sides: update callers for renamed inputs/parameters, code for
-changed output modes or error codes, and parser/request metadata for changed timestamps.
-Activation does not migrate old data. Validate a representative ingest using
-[running](running.md).
-
-## Inspect live state
-
-Use `extractor.active_image`, `extractor.search_container_images(...)`,
-`client.search_container_images(...)` or `client.get_container_image(rid)`, or
-`nom container image get`/`search` and `nom container extractor get`/`search`. An image shows
-its `inputs`, `parameters`, `exit_code_mappings`, `file_output_format` and
-`default_timestamp_metadata`. Image statuses are PENDING, READY and FAILED;
-`image.poll_until_ready()` handles asynchronous processing. `image.delete()` fails while
-active and is not a version-retry strategy. Extractor `update`, `archive` and `unarchive`
-manage the stable identity; archive hides it from search and rejects new ingests. On resume,
-query Nominal rather than trusting a local snapshot. Preserve projects already using
-`nom container` and their checked-in config JSON; it is a valid contract representation, not
-a fallback.

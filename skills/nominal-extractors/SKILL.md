@@ -59,10 +59,10 @@ question blocking progress. Do not repeat settled questions or turn every modeli
 an intake questionnaire.
 
 Keep executable choices and defaults in parser/registration code, with concise rationale in
-the project README (create one for a new project). Read live deployed state from Nominal when available; local
-code expresses intent, not proof of deployment. Do not add a parallel JSON state/config file
-or a new decision document. [Modeling](references/modeling.md) covers what to settle and an
-illustrative README note.
+the project README (create one for a new project). Read live deployed state from Nominal when
+available; local code expresses intent, not proof of deployment. Do not add a parallel JSON
+state/config file or a new decision document. [Modeling](references/modeling.md) covers what
+to settle and an illustrative README note.
 
 ## Work from the relevant stage
 

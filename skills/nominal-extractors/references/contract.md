@@ -222,16 +222,19 @@ videos after a representative ingest on the target deployment.
 
 - **Tabular**: CSV with a header row, or Parquet. One column holds timestamps; tag columns
   become tags; every other column becomes a channel.
-- **Avro stream**: an Avro object container file whose records match the schema below
-  (reproduced from `Dataset.add_avro_stream` in the Python SDK). Each record carries one
-  channel, parallel `timestamps` and `values` arrays of equal length, and its own tags, so the
-  format needs no tag columns. The `nominal-streaming` Rust crate and Python package write this
-  schema to a local file (`stream_to_file` / `to_file`) with Unix-epoch nanosecond timestamps;
-  any Apache Avro library can write it from the schema.
 - **Journal JSON**: one JSON object per line with a `MESSAGE` string and a timestamp field
   (numeric when declared per output). Other top-level fields become string log arguments. Lines
   missing either required field are skipped, and logs take neither tags nor a channel prefix.
 - **Video**: one of the containers listed above, encoded as the camera recorded it.
+
+### Avro stream
+
+An Avro object container file whose records match this schema, reproduced from
+`Dataset.add_avro_stream` in the Python SDK. Each record carries one channel, parallel
+`timestamps` and `values` arrays of equal length, and its own tags, so the format needs no tag
+columns. The `nominal-streaming` Rust crate and Python package write it to a local file
+(`stream_to_file` / `to_file`) with Unix-epoch nanosecond timestamps; any Apache Avro library
+can write it from the schema.
 
 ```json
 {
@@ -256,6 +259,7 @@ videos after a representative ingest on the target deployment.
 
 Struct values are JSON strings wrapped in `JsonStruct`. A file that does not follow this schema
 fails ingestion.
+
 
 ## Timestamp metadata precedence
 
