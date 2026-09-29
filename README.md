@@ -8,7 +8,7 @@ Nominal's [agent skills](https://agentskills.io/specification): packaged instruc
 | --- | --- | --- |
 | `nominal-ingest` | Plans and executes ingestion of a folder of test or campaign data into Nominal. | [`SKILL.md`](skills/nominal-ingest/SKILL.md) |
 | `connect-app` | Scaffolds a Nominal Connect app (`app.connect` UI + Python scripts) from a description of its UI and behavior. | [`SKILL.md`](skills/connect-app/SKILL.md) |
-| `nominal-extractors` | Guides building, registering, and running a containerized extractor so Nominal can ingest a proprietary or unsupported file format. | [`SKILL.md`](skills/nominal-extractors/SKILL.md) |
+| `nominal-extractors` | Guides building, registering, and running a containerized extractor, in any language, so Nominal can ingest a proprietary or unsupported file format. | [`SKILL.md`](skills/nominal-extractors/SKILL.md) |
 
 How you invoke a skill depends on the host — see [Invoke](#invoke). Installed, enabled skills
 can also be selected automatically when your request matches their description and the host
@@ -207,9 +207,12 @@ Install a release binary from the
 [nomctl releases](https://github.com/nominal-io/nominal-client-rs/releases) page and
 make `nomctl` available on your `PATH` before using the skill.
 
-`nominal-extractors` uses the [`nominal` Python SDK](https://github.com/nominal-io/nominal-client)
-for authoring and local tests. Install it with `pip install nominal`. Building and saving
-images requires Docker; registration and ingestion additionally require Nominal access.
-These are execution prerequisites, not requirements for asking for guidance or reviewing code.
+`nominal-extractors` works with extractors written in any language. Python extractors use the
+[`nominal` Python SDK](https://github.com/nominal-io/nominal-client) for authoring and local
+tests (`pip install nominal`); extractors in other languages need only their own toolchain.
+Building and saving images requires Docker. Registration uses the `nom` CLI or the Python SDK,
+both from the `nominal` package, and registration and ingestion additionally require Nominal
+access. These are execution prerequisites, not requirements for asking for guidance or
+reviewing code.
 
 Questions or problems? [Open an issue](https://github.com/nominal-io/skills/issues).
