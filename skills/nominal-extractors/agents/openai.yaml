@@ -1,6 +1,7 @@
 # Optional OpenAI host metadata for display and invocation.
-# Display and starter-prompt only: this skill needs Python, Docker, and Nominal
-# credentials on the user's machine, none of which are MCP tool dependencies.
+# Display and starter-prompt only: this skill needs Docker, the extractor's own language
+# toolchain, and Nominal credentials (with the nom CLI or Python SDK for registration) on the
+# user's machine, none of which are MCP tool dependencies.
 interface:
   display_name: "Nominal Extractors"
   short_description: "Build and debug custom Nominal file converters"
