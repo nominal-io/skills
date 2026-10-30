@@ -107,9 +107,9 @@ its plugin namespace:
 /nominal:nominal-ingest
 ```
 
-The MCP server supports Nominal-managed deployments. When you enable the plugin, select
-your deployment. The default is `api.gov.nominal.io`. To change it later, open `/plugin`,
-select `nominal`, and set **Nominal deployment**.
+The MCP server supports Nominal-managed deployments. When you enable the plugin, enter
+the API host of your deployment from the table below. The default is `api.gov.nominal.io`.
+To change it later, open `/plugin`, select `nominal`, and set **Nominal deployment**.
 
 | Deployment | API host |
 | --- | --- |
