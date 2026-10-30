@@ -22,8 +22,8 @@
       ]
     },
     {
-      "name": "nominal-mcp",
-      "source": "./plugins/nominal-mcp",
+      "name": "nominal",
+      "source": "./plugins/nominal",
       "description": "Connect Claude Code to the Nominal MCP server to search, read, and edit Nominal workbooks, checklists, runs, and assets.",
       "category": "hardware-telemetry",
       "keywords": [

@@ -1,5 +1,5 @@
 {
-  "name": "nominal-mcp",
+  "name": "nominal",
   "version": "0.1.0",
   "description": "Connect Claude Code to the Nominal MCP server to search, read, and edit Nominal workbooks, checklists, runs, and assets.",
   "author": {
