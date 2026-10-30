@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "nominal": {
-      "type": "http",
-      "url": "https://${user_config.api_host}/mcp",
-      "oauth": { "clientId": "nominal-mcp", "callbackPort": 54545 }
-    }
-  }
-}

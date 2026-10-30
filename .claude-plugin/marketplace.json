@@ -4,12 +4,12 @@
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
   },
-  "description": "Nominal agent skills for hardware telemetry, test data, and sensor time-series workflows.",
+  "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
   "plugins": [
     {
-      "name": "nominal-skills",
+      "name": "nominal",
       "source": "./",
-      "description": "Agent skills from Nominal",
+      "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
       "category": "hardware-telemetry",
       "keywords": [
         "telemetry",
@@ -18,20 +18,8 @@
         "sensor-data",
         "time-series",
         "nomctl",
-        "nominal"
-      ]
-    },
-    {
-      "name": "nominal",
-      "source": "./plugins/nominal",
-      "description": "Connect Claude Code to the Nominal MCP server to search, read, and edit Nominal workbooks, checklists, runs, and assets.",
-      "category": "hardware-telemetry",
-      "keywords": [
         "nominal",
-        "mcp",
-        "telemetry",
-        "hardware-testing",
-        "test-data"
+        "mcp"
       ]
     }
   ]
