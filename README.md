@@ -97,14 +97,31 @@ Install the native Claude Code plugin from this marketplace:
 
 ```text
 /plugin marketplace add nominal-io/skills
-/plugin install nominal-skills@nominal
+/plugin install nominal@nominal
 ```
 
-Invoke the installed skill with its plugin namespace:
+The plugin includes the skills and the Nominal MCP server. Invoke an installed skill with
+its plugin namespace:
 
 ```text
-/nominal-skills:nominal-ingest
+/nominal:nominal-ingest
 ```
+
+The MCP server supports Nominal-managed deployments. When you enable the plugin, select
+your deployment. The default is `api.gov.nominal.io`. To change it later, open `/plugin`,
+select `nominal`, and set **Nominal deployment**.
+
+| Deployment | API host |
+| --- | --- |
+| US | `api.gov.nominal.io` |
+| EU West | `api.euw2.nominal.io` |
+| EU Central | `api.euc1.nominal.io` |
+| Canada | `api.cac1.nominal.io` |
+
+To sign in, run `/mcp`, select `plugin:nominal:nominal`, and select **Authenticate**. A
+browser opens for your organization's sign-in. The plugin uses OAuth with PKCE and stores no
+API keys. The sign-in uses local callback port `54545`. For a self-hosted deployment, follow
+[Connect an external MCP client](https://docs.nominal.io/core/documentation/platform/external-mcp-server).
 
 Alternatively, install the skill directly with the skills CLI:
 
@@ -155,10 +172,11 @@ Explicit invocation is host-specific:
 | ChatGPT | type `@`, pick the skill, then the request: `@nominal-ingest Ingest this folder of flight data.` |
 | Codex CLI, native plugin | `$nominal-skills:nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
 | Codex CLI / IDE, direct skill install | `$nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
-| Claude Code, native plugin | `/nominal-skills:nominal-ingest` |
+| Claude Code, native plugin | `/nominal:nominal-ingest` |
 | Cursor and other slash-command hosts | `/nominal-ingest` |
 
-For native plugins, keep the `nominal-skills:` namespace when substituting a skill name.
+For native plugins, keep the plugin namespace when substituting a skill name: `nominal-skills:`
+in Codex, `nominal:` in Claude Code.
 Selecting the skill from the host picker avoids ambiguity between installation methods. Hosts that support implicit
 selection can match your request against the skill description. If selection is unreliable,
 invoke the skill explicitly. OpenAI invocation and discovery behavior is documented in
