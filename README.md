@@ -1,4 +1,4 @@
-# Nominal agent skills
+# Nominal
 
 Nominal's [agent skills](https://agentskills.io/specification): packaged instructions that coding agents can load to perform a focused task.
 
@@ -46,7 +46,7 @@ through [GitHub marketplace import](https://learn.chatgpt.com/docs/enterprise/pl
 3. Leave **Branch, tag, or commit** empty for the default branch, or select the revision
    you intend to test. An unmerged PR requires its branch or commit.
 4. Import the marketplace, authorize GitHub access if prompted, and review the import results.
-5. Configure access to **Nominal Skills** for the intended workspace members. Members with
+5. Configure access to **Nominal** for the intended workspace members. Members with
    access can install the plugin, start a new chat, and select its skills with `@`.
 
 The repository's `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` use a
@@ -71,9 +71,12 @@ Install the native Codex plugin from this marketplace:
 
 ```sh
 codex plugin marketplace add nominal-io/skills
-codex plugin add nominal-skills@nominal
+codex plugin add nominal@nominal
 ```
 
+The plugin is displayed as **Nominal** and uses the same `nominal@nominal` identifier as Claude.
+If you installed the earlier `nominal-skills@nominal` plugin, remove it with
+`codex plugin remove nominal-skills@nominal` before installing `nominal@nominal`.
 Start a new session after installation. The plugin includes `nominal-ingest`, `connect-app`,
 and `nominal-extractors`. You can also select it through `/plugins` in Codex CLI.
 For the IDE extension, use the direct skill installation below; native plugins are not
@@ -90,6 +93,41 @@ Codex discovers project skills in `.agents/skills/` and user skills in `~/.agent
 ```sh
 npx skills add nominal-io/skills -g -a codex
 ```
+
+### Codex MCP connections
+
+The Codex manifest bundles four Streamable HTTP connections in
+[`.codex-plugin/plugin.json`](.codex-plugin/plugin.json):
+
+| Connection | Deployment | Endpoint |
+| --- | --- | --- |
+| `nominal-us-gov` | US GovCloud | `https://api.gov.nominal.io/mcp` |
+| `nominal-eu-west` | EU West | `https://api.euw2.nominal.io/mcp` |
+| `nominal-eu-central` | EU Central | `https://api.euc1.nominal.io/mcp` |
+| `nominal-canada` | Canada | `https://api.cac1.nominal.io/mcp` |
+
+Use the connection matching your organization's endpoint in **Settings → API keys**.
+Authenticate only the deployments you use, and disable unused connections in your host.
+A request must stay within the selected deployment; do not treat other regions as fallbacks.
+Direct skill installation with `npx skills add` does not install these MCP connections.
+
+Each connection declares OAuth client ID `nominal-mcp`, scope `mcp:tools`, and the native
+callback port `54545`. Codex also uses the explicit callback base
+`http://localhost:54545/callback` and appends its server-specific path segment.
+Use your host's MCP login controls, and include `mcp:tools` explicitly if it asks for
+scopes. OAuth requires PKCE S256. No API tokens or client secrets are bundled.
+See [Nominal's MCP setup guide](https://docs.nominal.io/core/documentation/platform/external-mcp-server)
+for client requirements and callback troubleshooting.
+
+These are native-client settings, not a completed ChatGPT hosted connection. Hosted
+OAuth requires the exact redirect URI supplied by that host to be allowlisted by Nominal.
+The public plugin-directory submission flow and regional connection support still need
+validation; adding these files does not publish a listing or verify end-to-end login.
+Codex does not interpret Claude's `userConfig` / `${user_config.api_host}` deployment
+selector, so its manifest declares these four concrete endpoints. The manifests share
+identity, version, package metadata, policy links, icon, and OAuth client settings. Codex
+also declares the required scope and callback base. Installed-client login has not yet
+been exercised. See the [Nominal documentation](https://docs.nominal.io) for product guidance.
 
 ### Claude Code
 
@@ -170,13 +208,12 @@ Explicit invocation is host-specific:
 | Host | Example |
 | --- | --- |
 | ChatGPT | type `@`, pick the skill, then the request: `@nominal-ingest Ingest this folder of flight data.` |
-| Codex CLI, native plugin | `$nominal-skills:nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
+| Codex CLI, native plugin | `$nominal:nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
 | Codex CLI / IDE, direct skill install | `$nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
 | Claude Code, native plugin | `/nominal:nominal-ingest` |
 | Cursor and other slash-command hosts | `/nominal-ingest` |
 
-For native plugins, keep the plugin namespace when substituting a skill name: `nominal-skills:`
-in Codex, `nominal:` in Claude Code.
+For native plugins, keep the `nominal:` namespace when substituting a skill name.
 Selecting the skill from the host picker avoids ambiguity between installation methods. Hosts that support implicit
 selection can match your request against the skill description. If selection is unreliable,
 invoke the skill explicitly. OpenAI invocation and discovery behavior is documented in
