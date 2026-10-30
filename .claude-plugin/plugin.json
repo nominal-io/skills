@@ -10,6 +10,8 @@
   "repository": "https://github.com/nominal-io/skills",
   "license": "Apache-2.0",
   "privacyPolicyUrl": "https://docs.nominal.io/privacy-policy",
+  "termsOfServiceUrl": "https://docs.nominal.io/commercial-terms",
+  "documentationUrl": "https://docs.nominal.io",
   "keywords": [
     "telemetry",
     "hardware-testing",
