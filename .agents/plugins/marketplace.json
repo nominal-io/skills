@@ -16,7 +16,7 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools",
-      "description": "Agent skills from Nominal",
+      "description": "Nominal skills and regional MCP connections",
       "keywords": [
         "telemetry",
         "hardware-testing",
@@ -27,7 +27,7 @@
         "nominal"
       ],
       "interface": {
-        "displayName": "Nominal Skills"
+        "displayName": "Nominal"
       }
     }
   ]

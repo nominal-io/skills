@@ -8,6 +8,7 @@
 import json
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -88,6 +89,7 @@ for path in (
     ROOT / ".claude-plugin/marketplace.json",
     ROOT / ".codex-plugin/plugin.json",
     ROOT / ".agents/plugins/marketplace.json",
+    ROOT / ".mcp.json",
 ):
     try:
         with path.open(encoding="utf-8") as handle:
@@ -96,6 +98,39 @@ for path in (
         errors.append(f"ERROR {path.relative_to(ROOT)}: manifest does not exist")
     except json.JSONDecodeError as exc:
         errors.append(f"ERROR {path.relative_to(ROOT)}: invalid JSON on line {exc.lineno}: {exc.msg}")
+
+if not errors:
+    manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
+    if manifest.get("mcpServers") != "./.mcp.json":
+        errors.append("ERROR .codex-plugin/plugin.json: mcpServers must reference ./.mcp.json")
+    config = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))
+    servers = config.get("mcpServers")
+    if not isinstance(servers, dict) or not servers:
+        errors.append("ERROR .mcp.json: mcpServers must be a non-empty object")
+    else:
+        for name, server in servers.items():
+            prefix = f"ERROR .mcp.json: {name}"
+            if not isinstance(server, dict):
+                errors.append(f"{prefix}: server must be an object")
+                continue
+            if set(server) != {"type", "url", "scopes", "oauth"}:
+                errors.append(f"{prefix}: expected only type, url, scopes, and oauth")
+            url = server.get("url")
+            if not isinstance(url, str):
+                errors.append(f"{prefix}: url must be a string")
+                continue
+            parsed = urlsplit(url)
+            if (parsed.scheme != "https" or not parsed.hostname or parsed.username
+                    or parsed.password or parsed.query or parsed.fragment or parsed.path != "/mcp"):
+                errors.append(f"{prefix}: expected a credential-free HTTPS /mcp endpoint")
+            if server.get("type") != "http" or server.get("scopes") != ["mcp:tools"]:
+                errors.append(f"{prefix}: expected HTTP transport and mcp:tools scope")
+            if server.get("oauth") != {
+                "clientId": "nominal-mcp",
+                "callbackPort": 54545,
+                "callbackUrl": "http://localhost:54545/callback",
+            }:
+                errors.append(f"{prefix}: expected Nominal's public native OAuth client settings")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

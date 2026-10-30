@@ -1,4 +1,4 @@
-# Nominal agent skills
+# Nominal
 
 Nominal's [agent skills](https://agentskills.io/specification): packaged instructions that coding agents can load to perform a focused task.
 
@@ -46,7 +46,7 @@ through [GitHub marketplace import](https://learn.chatgpt.com/docs/enterprise/pl
 3. Leave **Branch, tag, or commit** empty for the default branch, or select the revision
    you intend to test. An unmerged PR requires its branch or commit.
 4. Import the marketplace, authorize GitHub access if prompted, and review the import results.
-5. Configure access to **Nominal Skills** for the intended workspace members. Members with
+5. Configure access to **Nominal** for the intended workspace members. Members with
    access can install the plugin, start a new chat, and select its skills with `@`.
 
 The repository's `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` use a
@@ -74,7 +74,8 @@ codex plugin marketplace add nominal-io/skills
 codex plugin add nominal-skills@nominal
 ```
 
-Start a new session after installation. The plugin includes `nominal-ingest`, `connect-app`,
+The plugin is displayed as **Nominal**; its stable install identifier remains
+`nominal-skills@nominal`. Start a new session after installation. The plugin includes `nominal-ingest`, `connect-app`,
 and `nominal-extractors`. You can also select it through `/plugins` in Codex CLI.
 For the IDE extension, use the direct skill installation below; native plugins are not
 available there. See [supported plugin surfaces](https://learn.chatgpt.com/docs/plugins).
@@ -90,6 +91,37 @@ Codex discovers project skills in `.agents/skills/` and user skills in `~/.agent
 ```sh
 npx skills add nominal-io/skills -g -a codex
 ```
+
+### MCP connections
+
+The native plugin bundles four Streamable HTTP connections in [`.mcp.json`](.mcp.json):
+
+| Connection | Deployment | Endpoint |
+| --- | --- | --- |
+| `nominal-us-gov` | US GovCloud | `https://api.gov.nominal.io/mcp` |
+| `nominal-eu-west` | EU West | `https://api.euw2.nominal.io/mcp` |
+| `nominal-eu-central` | EU Central | `https://api.euc1.nominal.io/mcp` |
+| `nominal-canada` | Canada | `https://api.cac1.nominal.io/mcp` |
+
+Use the connection matching your organization's endpoint in **Settings → API keys**.
+Authenticate only the deployments you use, and disable unused connections in your host.
+A request must stay within the selected deployment; do not treat other regions as fallbacks.
+Direct skill installation with `npx skills add` does not install these MCP connections.
+
+Each connection declares OAuth client ID `nominal-mcp`, scope `mcp:tools`, and the native
+callback port `54545`. Codex also uses the explicit callback base
+`http://localhost:54545/callback` and appends its server-specific path segment.
+Use your host's MCP login controls, and include `mcp:tools` explicitly if it asks for
+scopes. OAuth requires PKCE S256. No API tokens or client secrets are bundled.
+See [Nominal's MCP setup guide](https://docs.nominal.io/core/documentation/platform/external-mcp-server)
+for client requirements and callback troubleshooting.
+
+These are native-client settings, not a completed ChatGPT hosted connection. Hosted
+OAuth requires the exact redirect URI supplied by that host to be allowlisted by Nominal.
+The public plugin-directory submission flow and regional connection support still need
+validation; adding these files does not publish a listing or verify end-to-end login.
+The configuration was checked against Codex's plugin parser; installed-client login and
+Claude Code compatibility have not yet been exercised.
 
 ### Claude Code
 

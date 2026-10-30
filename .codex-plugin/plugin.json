@@ -1,7 +1,7 @@
 {
   "name": "nominal-skills",
-  "version": "1.0.0",
-  "description": "Agent skills from Nominal",
+  "version": "1.1.0",
+  "description": "Nominal skills and regional MCP connections",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
@@ -19,11 +19,12 @@
     "nominal"
   ],
   "interface": {
-    "displayName": "Nominal Skills",
-    "shortDescription": "Hardware telemetry skills",
-    "longDescription": "Skills for working with Nominal: ingesting hardware telemetry, test and flight campaign data with nomctl, building containerized extractors for formats Nominal does not parse natively, and scaffolding Connect apps.",
+    "displayName": "Nominal",
+    "shortDescription": "Hardware workflows and data",
+    "longDescription": "Skills for ingesting hardware telemetry, building extractors, and scaffolding Connect apps, plus OAuth MCP connections to Nominal US GovCloud, EU West, EU Central, and Canada.",
     "developerName": "Nominal",
     "category": "Developer Tools"
   },
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
 }
