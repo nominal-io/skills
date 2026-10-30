@@ -118,6 +118,16 @@ Claude Code discovers project skills in `.claude/skills/` and user skills in `~/
 npx skills add nominal-io/skills -g -a claude-code
 ```
 
+The same marketplace also has `nominal-mcp`, which connects Claude Code to the Nominal MCP
+server on Nominal-managed deployments with OAuth:
+
+```text
+/plugin install nominal-mcp@nominal
+```
+
+See [`plugins/nominal-mcp/README.md`](plugins/nominal-mcp/README.md) to select your
+deployment and sign in.
+
 ### Any other agent / manual install
 
 The skills CLI supports many agents:

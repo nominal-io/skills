@@ -1,0 +1,33 @@
+{
+  "name": "nominal-mcp",
+  "version": "0.1.0",
+  "description": "Connect Claude Code to the Nominal MCP server to search, read, and edit Nominal workbooks, checklists, runs, and assets.",
+  "author": {
+    "name": "Nominal",
+    "url": "https://github.com/nominal-io"
+  },
+  "homepage": "https://docs.nominal.io/core/documentation/platform/external-mcp-server",
+  "license": "Apache-2.0",
+  "keywords": [
+    "nominal",
+    "mcp",
+    "hardware",
+    "test",
+    "telemetry"
+  ],
+  "userConfig": {
+    "api_host": {
+      "type": "string",
+      "title": "Nominal deployment",
+      "description": "API host of your Nominal deployment: api.gov.nominal.io (US), api.euw2.nominal.io (EU West), api.euc1.nominal.io (EU Central), api.cac1.nominal.io (Canada).",
+      "options": [
+        "api.gov.nominal.io",
+        "api.euw2.nominal.io",
+        "api.euc1.nominal.io",
+        "api.cac1.nominal.io"
+      ],
+      "default": "api.gov.nominal.io"
+    }
+  },
+  "repository": "https://github.com/nominal-io/skills"
+}
