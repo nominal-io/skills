@@ -1,7 +1,7 @@
 {
-  "name": "nominal-skills",
-  "version": "1.1.0",
-  "description": "Nominal skills and regional MCP connections",
+  "name": "nominal",
+  "version": "2.0.0",
+  "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
@@ -16,15 +16,70 @@
     "sensor-data",
     "time-series",
     "nomctl",
-    "nominal"
+    "nominal",
+    "mcp"
   ],
   "interface": {
     "displayName": "Nominal",
     "shortDescription": "Hardware workflows and data",
-    "longDescription": "Skills for ingesting hardware telemetry, building extractors, and scaffolding Connect apps, plus OAuth MCP connections to Nominal US GovCloud, EU West, EU Central, and Canada.",
+    "longDescription": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
     "developerName": "Nominal",
-    "category": "Developer Tools"
+    "category": "Developer Tools",
+    "websiteURL": "https://github.com/nominal-io/skills#readme",
+    "privacyPolicyURL": "https://docs.nominal.io/privacy-policy",
+    "termsOfServiceURL": "https://docs.nominal.io/commercial-terms",
+    "logo": "./.claude-plugin/icon.png",
+    "composerIcon": "./.claude-plugin/icon.png"
   },
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": {
+    "nominal-us-gov": {
+      "type": "http",
+      "url": "https://api.gov.nominal.io/mcp",
+      "scopes": [
+        "mcp:tools"
+      ],
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545,
+        "callbackUrl": "http://localhost:54545/callback"
+      }
+    },
+    "nominal-eu-west": {
+      "type": "http",
+      "url": "https://api.euw2.nominal.io/mcp",
+      "scopes": [
+        "mcp:tools"
+      ],
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545,
+        "callbackUrl": "http://localhost:54545/callback"
+      }
+    },
+    "nominal-eu-central": {
+      "type": "http",
+      "url": "https://api.euc1.nominal.io/mcp",
+      "scopes": [
+        "mcp:tools"
+      ],
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545,
+        "callbackUrl": "http://localhost:54545/callback"
+      }
+    },
+    "nominal-canada": {
+      "type": "http",
+      "url": "https://api.cac1.nominal.io/mcp",
+      "scopes": [
+        "mcp:tools"
+      ],
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545,
+        "callbackUrl": "http://localhost:54545/callback"
+      }
+    }
+  }
 }

@@ -3,10 +3,10 @@
   "interface": {
     "displayName": "Nominal Plugins"
   },
-  "description": "Nominal agent skills for hardware telemetry, test data, and sensor time-series workflows.",
+  "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
   "plugins": [
     {
-      "name": "nominal-skills",
+      "name": "nominal",
       "source": {
         "source": "local",
         "path": "./"
@@ -16,7 +16,7 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools",
-      "description": "Nominal skills and regional MCP connections",
+      "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
       "keywords": [
         "telemetry",
         "hardware-testing",
@@ -24,7 +24,8 @@
         "sensor-data",
         "time-series",
         "nomctl",
-        "nominal"
+        "nominal",
+        "mcp"
       ],
       "interface": {
         "displayName": "Nominal"

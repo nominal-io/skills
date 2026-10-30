@@ -89,7 +89,6 @@ for path in (
     ROOT / ".claude-plugin/marketplace.json",
     ROOT / ".codex-plugin/plugin.json",
     ROOT / ".agents/plugins/marketplace.json",
-    ROOT / ".mcp.json",
 ):
     try:
         with path.open(encoding="utf-8") as handle:
@@ -101,15 +100,28 @@ for path in (
 
 if not errors:
     manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
-    if manifest.get("mcpServers") != "./.mcp.json":
-        errors.append("ERROR .codex-plugin/plugin.json: mcpServers must reference ./.mcp.json")
-    config = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))
-    servers = config.get("mcpServers")
+    claude = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    for key in ("name", "version", "description", "author", "homepage", "repository", "license", "keywords"):
+        if manifest.get(key) != claude.get(key):
+            errors.append(f"ERROR .codex-plugin/plugin.json: {key} differs from the Claude plugin")
+    interface = manifest.get("interface", {})
+    for codex_key, claude_key in (("privacyPolicyURL", "privacyPolicyUrl"),
+                                  ("termsOfServiceURL", "termsOfServiceUrl"),
+                                  ("websiteURL", "homepage")):
+        if interface.get(codex_key) != claude.get(claude_key):
+            errors.append(f"ERROR .codex-plugin/plugin.json: {codex_key} differs from Claude metadata")
+    for key in ("logo", "composerIcon"):
+        if interface.get(key) != "./.claude-plugin/icon.png" or not (ROOT / ".claude-plugin/icon.png").is_file():
+            errors.append(f"ERROR .codex-plugin/plugin.json: {key} must reference the shared Nominal icon")
+    marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
+    if marketplace["plugins"][0]["name"] != manifest["name"]:
+        errors.append("ERROR .agents/plugins/marketplace.json: plugin name must match the manifest")
+    servers = manifest.get("mcpServers")
     if not isinstance(servers, dict) or not servers:
-        errors.append("ERROR .mcp.json: mcpServers must be a non-empty object")
+        errors.append("ERROR .codex-plugin/plugin.json mcpServers: mcpServers must be a non-empty object")
     else:
         for name, server in servers.items():
-            prefix = f"ERROR .mcp.json: {name}"
+            prefix = f"ERROR .codex-plugin/plugin.json mcpServers: {name}"
             if not isinstance(server, dict):
                 errors.append(f"{prefix}: server must be an object")
                 continue
@@ -121,13 +133,13 @@ if not errors:
                 continue
             parsed = urlsplit(url)
             if (parsed.scheme != "https" or not parsed.hostname or parsed.username
-                    or parsed.password or parsed.query or parsed.fragment or parsed.path != "/mcp"):
+                    or parsed.password or parsed.query or parsed.fragment or parsed.path != "/mcp"
+                    or "${" in url):
                 errors.append(f"{prefix}: expected a credential-free HTTPS /mcp endpoint")
             if server.get("type") != "http" or server.get("scopes") != ["mcp:tools"]:
                 errors.append(f"{prefix}: expected HTTP transport and mcp:tools scope")
             if server.get("oauth") != {
-                "clientId": "nominal-mcp",
-                "callbackPort": 54545,
+                **claude["mcpServers"]["nominal"]["oauth"],
                 "callbackUrl": "http://localhost:54545/callback",
             }:
                 errors.append(f"{prefix}: expected Nominal's public native OAuth client settings")
