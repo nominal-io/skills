@@ -85,7 +85,7 @@ for directory in sorted((ROOT / "skills").iterdir()):
         if unknown_sections:
             errors.append(f"ERROR {metadata_path.relative_to(ROOT)}: unknown top-level keys {unknown_sections}")
 for path in (
-    ROOT / ".claude-plugin/plugin.json",
+    ROOT / "plugins/nominal/.claude-plugin/plugin.json",
     ROOT / ".claude-plugin/marketplace.json",
     ROOT / ".codex-plugin/plugin.json",
     ROOT / ".agents/plugins/marketplace.json",
@@ -100,10 +100,24 @@ for path in (
 
 if not errors:
     manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
-    claude = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
-    for key in ("name", "version", "description", "author", "homepage", "repository", "license", "keywords"):
+    claude = json.loads((ROOT / "plugins/nominal/.claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    for key in ("name", "author", "homepage", "repository", "license"):
         if manifest.get(key) != claude.get(key):
             errors.append(f"ERROR .codex-plugin/plugin.json: {key} differs from the Claude plugin")
+    claude_marketplace = json.loads((ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+    claude_entry = claude_marketplace["plugins"][0]
+    if claude_entry.get("source") != "./plugins/nominal":
+        errors.append("ERROR .claude-plugin/marketplace.json: Claude source must be ./plugins/nominal")
+    if claude_entry.get("name") != claude.get("name"):
+        errors.append("ERROR .claude-plugin/marketplace.json: plugin name must match the Claude manifest")
+    claude_root = ROOT / "plugins/nominal"
+    if any(claude_root.rglob("SKILL.md")) or (claude_root / "skills").exists():
+        errors.append("ERROR plugins/nominal: the Claude package must not bundle skills")
+    for config in (claude, claude_entry):
+        if "skills" in config:
+            errors.append("ERROR Claude plugin: skill declarations are not supported in the MCP-only package")
+    if any(path.is_symlink() for path in claude_root.rglob("*")):
+        errors.append("ERROR plugins/nominal: symlinks must not pull external content into the package")
     interface = manifest.get("interface", {})
     for codex_key, claude_key in (("privacyPolicyURL", "privacyPolicyUrl"),
                                   ("termsOfServiceURL", "termsOfServiceUrl"),

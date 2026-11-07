@@ -125,7 +125,7 @@ The public plugin-directory submission flow and regional connection support stil
 validation; adding these files does not publish a listing or verify end-to-end login.
 Codex does not interpret Claude's `userConfig` / `${user_config.api_host}` deployment
 selector, so its manifest declares these four concrete endpoints. The manifests share
-identity, version, package metadata, policy links, icon, and OAuth client settings. Codex
+identity, publisher metadata, policy links, and OAuth client settings. Codex
 also declares the required scope and callback base. Installed-client login has not yet
 been exercised. See the [Nominal documentation](https://docs.nominal.io) for product guidance.
 
@@ -138,12 +138,10 @@ Install the native Claude Code plugin from this marketplace:
 /plugin install nominal@nominal
 ```
 
-The plugin includes the skills and the Nominal MCP server. Invoke an installed skill with
-its plugin namespace:
-
-```text
-/nominal:nominal-ingest
-```
+The Claude plugin includes only the Nominal MCP server. Its package lives in
+`plugins/nominal/`, separate from the repository's shared `skills/` directory.
+Skills remain available through the separate installation command below; the Codex plugin
+continues to bundle them.
 
 The MCP server supports Nominal-managed deployments. When you enable the plugin, enter
 the API host of your deployment from the table below. The default is `api.gov.nominal.io`.
@@ -161,7 +159,7 @@ browser opens for your organization's sign-in. The plugin uses OAuth with PKCE a
 API keys. The sign-in uses local callback port `54545`. For a self-hosted deployment, follow
 [Connect an external MCP client](https://docs.nominal.io/core/documentation/platform/external-mcp-server).
 
-Alternatively, install the skill directly with the skills CLI:
+To also install the skills, use the skills CLI separately:
 
 ```sh
 npx skills add nominal-io/skills -a claude-code
@@ -171,6 +169,13 @@ Claude Code discovers project skills in `.claude/skills/` and user skills in `~/
 
 ```sh
 npx skills add nominal-io/skills -g -a claude-code
+```
+
+To upload the Claude plugin as a ZIP, package only `plugins/nominal/`, not the repository
+root. To package the committed version from the repository root:
+
+```sh
+git archive --format=zip --output=nominal-claude.zip HEAD:plugins/nominal
 ```
 
 ### Any other agent / manual install
@@ -210,10 +215,11 @@ Explicit invocation is host-specific:
 | ChatGPT | type `@`, pick the skill, then the request: `@nominal-ingest Ingest this folder of flight data.` |
 | Codex CLI, native plugin | `$nominal:nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
 | Codex CLI / IDE, direct skill install | `$nominal-ingest Ingest this folder of flight data.` (or `/skills` and select it) |
-| Claude Code, native plugin | `/nominal:nominal-ingest` |
+| Claude Code, direct skill install | `/nominal-ingest` |
 | Cursor and other slash-command hosts | `/nominal-ingest` |
 
-For native plugins, keep the `nominal:` namespace when substituting a skill name.
+For the native Codex plugin, keep the `nominal:` namespace when substituting a skill name.
+The Claude MCP-only plugin does not provide skill commands.
 Selecting the skill from the host picker avoids ambiguity between installation methods. Hosts that support implicit
 selection can match your request against the skill description. If selection is unreliable,
 invoke the skill explicitly. OpenAI invocation and discovery behavior is documented in
