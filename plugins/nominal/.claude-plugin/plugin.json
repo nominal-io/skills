@@ -1,7 +1,7 @@
 {
   "name": "nominal",
   "description": "Nominal is the hardware intelligence platform purpose-built for the physical world",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
@@ -21,18 +21,34 @@
     "nominal",
     "mcp"
   ],
-  "userConfig": {
-    "api_host": {
-      "type": "string",
-      "title": "Nominal deployment",
-      "description": "API host of your Nominal deployment: api.gov.nominal.io (US), api.euw2.nominal.io (EU West), api.euc1.nominal.io (EU Central), api.cac1.nominal.io (Canada).",
-      "default": "api.gov.nominal.io"
-    }
-  },
   "mcpServers": {
-    "nominal": {
+    "nominal-us-gov": {
       "type": "http",
-      "url": "https://${user_config.api_host}/mcp",
+      "url": "https://api.gov.nominal.io/mcp",
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545
+      }
+    },
+    "nominal-eu-west": {
+      "type": "http",
+      "url": "https://api.euw2.nominal.io/mcp",
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545
+      }
+    },
+    "nominal-eu-central": {
+      "type": "http",
+      "url": "https://api.euc1.nominal.io/mcp",
+      "oauth": {
+        "clientId": "nominal-mcp",
+        "callbackPort": 54545
+      }
+    },
+    "nominal-canada": {
+      "type": "http",
+      "url": "https://api.cac1.nominal.io/mcp",
       "oauth": {
         "clientId": "nominal-mcp",
         "callbackPort": 54545
