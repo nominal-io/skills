@@ -1,7 +1,7 @@
 {
   "name": "nominal",
   "description": "Nominal is the hardware intelligence platform purpose-built for the physical world",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
