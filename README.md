@@ -171,6 +171,12 @@ Claude Code discovers project skills in `.claude/skills/` and user skills in `~/
 npx skills add nominal-io/skills -g -a claude-code
 ```
 
+For a Claude directory submission from GitHub, set the plugin path to
+`plugins/nominal`. The repository root is a marketplace, not the plugin submission
+folder. If an existing submission points at the root, create a new submission with
+this plugin path. The standalone folder includes the MCP manifest and listing icon;
+shared skills and development scripts stay outside it.
+
 To upload the Claude plugin as a ZIP, package only `plugins/nominal/`, not the repository
 root. To package the committed version from the repository root:
 
