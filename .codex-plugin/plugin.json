@@ -21,7 +21,7 @@
   ],
   "interface": {
     "displayName": "Nominal",
-    "shortDescription": "Hardware workflows and data",
+    "shortDescription": "Hardware intelligence platform",
     "longDescription": "Nominal is the hardware intelligence platform purpose-built for the physical world",
     "developerName": "Nominal",
     "category": "Developer Tools",
