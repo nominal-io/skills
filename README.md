@@ -123,8 +123,7 @@ These are native-client settings, not a completed ChatGPT hosted connection. Hos
 OAuth requires the exact redirect URI supplied by that host to be allowlisted by Nominal.
 The public plugin-directory submission flow and regional connection support still need
 validation; adding these files does not publish a listing or verify end-to-end login.
-Codex does not interpret Claude's `userConfig` / `${user_config.api_host}` deployment
-selector, so its manifest declares these four concrete endpoints. The manifests share
+Both Codex and Claude declare these four concrete endpoints. The manifests share
 identity, publisher metadata, policy links, and OAuth client settings. Codex
 also declares the required scope and callback base. Installed-client login has not yet
 been exercised. See the [Nominal documentation](https://docs.nominal.io) for product guidance.
@@ -143,20 +142,24 @@ The Claude plugin includes only the Nominal MCP server. Its package lives in
 Skills remain available through the separate installation command below; the Codex plugin
 continues to bundle them.
 
-The MCP server supports Nominal-managed deployments. When you enable the plugin, enter
-the API host of your deployment from the table below. The default is `api.gov.nominal.io`.
-To change it later, open `/plugin`, select `nominal`, and set **Nominal deployment**.
+The plugin provides a separate MCP connection for each Nominal-managed deployment:
 
-| Deployment | API host |
-| --- | --- |
-| US | `api.gov.nominal.io` |
-| EU West | `api.euw2.nominal.io` |
-| EU Central | `api.euc1.nominal.io` |
-| Canada | `api.cac1.nominal.io` |
+| Connection | Deployment | Endpoint |
+| --- | --- | --- |
+| `nominal-us-gov` | US GovCloud | `https://api.gov.nominal.io/mcp` |
+| `nominal-eu-west` | EU West | `https://api.euw2.nominal.io/mcp` |
+| `nominal-eu-central` | EU Central | `https://api.euc1.nominal.io/mcp` |
+| `nominal-canada` | Canada | `https://api.cac1.nominal.io/mcp` |
 
-To sign in, run `/mcp`, select `plugin:nominal:nominal`, and select **Authenticate**. A
-browser opens for your organization's sign-in. The plugin uses OAuth with PKCE and stores no
-API keys. The sign-in uses local callback port `54545`. For a self-hosted deployment, follow
+To sign in, run `/mcp`, select the connection for your deployment, and select
+**Authenticate**. Authenticate only the deployments you use and disable unused
+connections. Keep each request within the selected deployment; other regions are not
+fallbacks. Versions before 3.1.0 used a single connection with a configurable API host;
+after upgrading, authenticate the corresponding regional connection.
+
+A browser opens for your organization's sign-in. The plugin uses OAuth with PKCE and
+stores no API keys. The sign-in uses local callback port `54545`; authenticate one
+connection at a time. For a self-hosted deployment, follow
 [Connect an external MCP client](https://docs.nominal.io/core/documentation/platform/external-mcp-server).
 
 To also install the skills, use the skills CLI separately:

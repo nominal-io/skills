@@ -148,15 +148,28 @@ if not errors:
             parsed = urlsplit(url)
             if (parsed.scheme != "https" or not parsed.hostname or parsed.username
                     or parsed.password or parsed.query or parsed.fragment or parsed.path != "/mcp"
-                    or "${" in url):
+                    or not url.isascii() or "${" in url):
                 errors.append(f"{prefix}: expected a credential-free HTTPS /mcp endpoint")
             if server.get("type") != "http" or server.get("scopes") != ["mcp:tools"]:
                 errors.append(f"{prefix}: expected HTTP transport and mcp:tools scope")
             if server.get("oauth") != {
-                **claude["mcpServers"]["nominal"]["oauth"],
+                "clientId": "nominal-mcp",
+                "callbackPort": 54545,
                 "callbackUrl": "http://localhost:54545/callback",
             }:
                 errors.append(f"{prefix}: expected Nominal's public native OAuth client settings")
+    expected_claude_servers = {
+        name: {
+            "type": server["type"],
+            "url": server["url"],
+            "oauth": {"clientId": "nominal-mcp", "callbackPort": 54545},
+        }
+        for name, server in servers.items()
+    } if isinstance(servers, dict) and not errors else None
+    if expected_claude_servers is not None and claude.get("mcpServers") != expected_claude_servers:
+        errors.append("ERROR Claude mcpServers: expected the same fixed regional endpoints as Codex with native OAuth")
+    if "userConfig" in claude:
+        errors.append("ERROR Claude plugin: fixed regional connections must not declare userConfig")
 if errors:
     print("\n".join(errors))
     sys.exit(1)
