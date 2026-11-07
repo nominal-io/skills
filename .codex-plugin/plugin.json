@@ -1,7 +1,7 @@
 {
   "name": "nominal",
   "version": "2.0.0",
-  "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
+  "description": "Nominal is the hardware intelligence platform purpose-built for the physical world",
   "author": {
     "name": "Nominal",
     "url": "https://github.com/nominal-io"
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "Nominal",
     "shortDescription": "Hardware workflows and data",
-    "longDescription": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
+    "longDescription": "Nominal is the hardware intelligence platform purpose-built for the physical world",
     "developerName": "Nominal",
     "category": "Developer Tools",
     "websiteURL": "https://github.com/nominal-io/skills#readme",

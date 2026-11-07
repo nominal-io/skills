@@ -3,7 +3,7 @@
   "interface": {
     "displayName": "Nominal Plugins"
   },
-  "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
+  "description": "Nominal is the hardware intelligence platform purpose-built for the physical world",
   "plugins": [
     {
       "name": "nominal",
@@ -16,7 +16,7 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools",
-      "description": "Nominal skills and MCP server for hardware telemetry, test data, and sensor time-series workflows.",
+      "description": "Nominal is the hardware intelligence platform purpose-built for the physical world",
       "keywords": [
         "telemetry",
         "hardware-testing",

@@ -1,6 +1,6 @@
 {
   "name": "nominal",
-  "description": "Nominal MCP server for hardware telemetry, test data, and sensor time-series workflows.",
+  "description": "Nominal is the hardware intelligence platform purpose-built for the physical world",
   "version": "3.0.0",
   "author": {
     "name": "Nominal",
